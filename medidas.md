@@ -13,7 +13,7 @@ Agora baixar e ler alguns pacotes básicos.
 ```
 if(!require(pacman, quietly = TRUE))(install.packages("pacman")) #agrupador de funções
 pacman::p_load(magrittr,dplyr,reshape2) #magrittr para operações de pipe/dplyr para manipulador de dados
-pacman::p_load(ggplot2, ggrepel, graphics,lubridate, gghighlight) #devtools, 
+pacman::p_load(ggplot2, ggrepel, graphics,lubridate, gghighlight, tidyquant) #devtools, 
 pacman::p_load(forcats,iNEXT,tidyr,tibble,iNEXT)
 pacman::p_load(vegan)  #vegan para estatística ecológica/graphics para os gráficos
 
@@ -35,11 +35,14 @@ E filtrar e montar a pespectiva de data.
 ```
 p2 <- subset(planilhatotal, !is.na(Região)) #tirar n/a da ano
 p2 <- subset(p2, !is.na(Número)) #tirar n/a da pontos
+pbase2 <- p2
+
 p2 <- subset(p2, !is.na(Altura)) #tirar n/a da pontos
-pbase <- p2
+p2 <- subset(p2, T.Encontro == "1") 
 p2 <- subset(p2, !is.na(Ano))
 p3 <- subset(p2, !is.na(Mês))
 p3 <- subset(p3, !is.na(Dia))
+pbase <- p3
 
 Data <- p3 %>% 
   select(Ano,Mês,Dia) %>% 
@@ -48,9 +51,385 @@ Data <- data.frame(p3,Data)
 
 ```
 
-### Acumulação
+#### Principal 
+### Diversidade
 
-## Acumulação de Pokémon por dia
+Agora um gráfico unificado para Treinador (Rota, Paisagem)
+```
+p2 <- Data
+p3 <- subset(p2, T.Treinador == "Jogador") 
+
+local<-reshape2::dcast(p3, Sub ~ Treinador, value.var = "Total.dex", fun.aggregate = sum)
+local=data.frame(local, row.names=1)
+
+#Mude o q para 1 para comparar a diversidade de Shannon e para 2 para Simpson
+
+out <- iNEXT(local, q = 0,
+             datatype = "abundance",
+             size = seq(0, 350, length.out=20))
+
+R <- ggiNEXT(out, type = 1) +
+  theme_bw() +
+  labs(fill = "Áreas") +
+  #xlab("Riqueza) + 
+  #ylab("Tempo") +
+  scale_shape_manual(values = 0:19) +
+  scale_color_tq() +
+  scale_fill_tq() +
+  theme_tq() +
+  theme(axis.title = element_text(size = 18), 
+        axis.text = element_text(size = 14), legend.position="bottom")
+
+R
+
+#ggsave(width = 20, height = 10, 
+       device = "pdf", filename = "2024_1_2_Acum", plot = R)
+    
+```
+Cluster de similaridade das rotas por pokémon
+```
+pacman::p_load("ade4")
+p2 <- pbase2
+p2 <- subset(p2, !is.na(Rota)) 
+p3 <- subset(p2, T.Treinador == "Selvagem") 
+#p3 <- subset(p2, Encontro == "Walking") #enquanto não tem pesca
+p3[-1][p3[-1] < 0] <- 0 #transformar negativo em 0
+
+local<-reshape2::dcast(p3, Rota ~ Sub) #, value.var = "Raridade", fun = sum)
+local=data.frame(local, row.names=1)
+d <- dist.binary(local, method = 1, diag = FALSE, upper = FALSE) #method 1Rota is Jaccard index (1901) S3 coefficient of Gower & Legendre
+hc <- hclust(d)               # apply hierarchical clustering 
+plot(hc, labels=local$ID)    # plot the dendrogram
+
+```
+## PCA
+
+PCA para identificar a paisagem mais imortante por família de Pokémon
+```
+pacman::p_load(ggfortify, cluster)
+
+p2 <- Data
+p2 <- subset(p2, T.Treinador == "Jogador") 
+p2 <- subset(p2, !is.na(Local)) #tirar n/a da ano
+
+#p2 <- subset(p2, Grupo == "Mastofauna")
+
+local<-reshape2::dcast(p2, Sub ~ Paisagem, value.var = "Total.dex", fun.aggregate = sum) #sum ou NULL
+local=data.frame(local, row.names=1)
+#local[local>0]<-1
+
+pca_res <- prcomp(local, scale. = TRUE)  #TRUE der errado verificar as paisagens. 
+#autoplot(pca_res)
+
+local<-reshape2::dcast(p2, Sub + Linha.E ~ Paisagem, value.var = "Total.dex", fun.aggregate = sum) #sum ou NULL
+pca <-autoplot(pca_res, data = local, colour = 'Linha.E', label = TRUE, label.size = 4, 
+         frame = TRUE, frame.type = NULL, frame.color = 'Grupo', #ou frame.type = 't'
+         loadings = TRUE, loadings.colour = 'blue',loadings.label = TRUE, loadings.label.size = 3) +                   
+         #scale_color_tq() + scale_fill_tq() + 
+         theme_tq() +
+         theme(legend.position = "none")  
+
+pca
+
+#ggsave(width = 20, height = 10, device = "pdf", filename = "2024_1_PCA", plot = pca)
+#path = "/home/user/Área de Trabalho/Serviços/ES - Rio Bananal/2021_03_03_Grancol/R"
+
+
+pacman::p_load(ggfortify, cluster)
+
+p2 <- Data
+p2 <- subset(p2, T.Treinador == "Jogador") 
+p2 <- subset(p2, !is.na(Paisagem)) #tirar n/a da ano
+
+#p2 <- subset(p2, Grupo == "Mastofauna")
+
+local<-reshape2::dcast(p2, Pokémon ~ Paisagem, value.var = "Total.dex", fun.aggregate = NULL) #sum ou NULL
+local=data.frame(local, row.names=1)
+#local[local>0]<-1
+
+pca_res <- prcomp(local, scale. = TRUE)  #TRUE der errado verificar as paisagens. 
+#autoplot(pca_res)
+
+local<-reshape2::dcast(p2, Pokémon + Classe ~ Paisagem, value.var = "Total.dex", fun.aggregate = NULL) #sum ou NULL
+
+pca <-autoplot(pca_res, data = local, colour = 'Classe', label = TRUE, label.size = 4, 
+         frame = TRUE, frame.type = NULL, frame.color = 'Grupo', #ou frame.type = 't'
+         loadings = TRUE, loadings.colour = 'blue',loadings.label = TRUE, loadings.label.size = 3) +                   
+         scale_color_tq() + scale_fill_tq() + theme_tq() 
+
+pca
+
+#ggsave(width = 20, height = 10, device = "pdf", filename = "2023_12_PCA2", plot = pca)
+#path = "/home/user/Área de Trabalho/Serviços/ES - Rio Bananal/2021_03_03_Grancol/R"
+
+
+
+```
+### Análises eploratórias
+
+## Rota
+
+Capturar por Tempo
+``` 
+pacman::p_load(ggside, stringr) #, tidyverse,tidyquant)
+
+p3 <- subset(pbase2, !is.na(Ano))
+p3 <- subset(p3, !is.na(Mês))
+p3 <- subset(p3, !is.na(Dia))
+
+Data <- p3 %>% 
+  select(Ano,Mês,Dia) %>% 
+  mutate(Data = make_date(Ano,Mês,Dia))
+Data <- data.frame(p3,Data)
+
+p2 <- Data
+p3 <- p2 %>% filter(str_detect(T.Treinador, "Jogador"))
+p4 <- p2 %>% filter(str_detect(T.Treinador, "NPC")) 
+p3 <- rbind(p3,p4)
+#p3 <- subset(p3, Treinador == "Samuel") #escolher artista
+p3 <- subset(p3, T.Encontro!="4") #retirar artista
+p3<-unique(p3)
+
+p4 <- p3
+#p4 <- subset(p4,Tipo!="Grass") 
+
+#p4 <- p4 %>%  subset(Total.Dex > 0.55)
+
+ggplot(p4, aes(x = Data, y = Fase)) + 
+  geom_point(aes(colour = Treinador, size = N.0, shape = Contato), alpha = 0.6) + 
+  scale_shape_manual(values = 0:10) +
+  scale_size(range = c(5, 18), name = "Nível") +
+  geom_smooth(method = loess,se = FALSE, alpha = 0.6, aes(colour = Treinador)) +  #method = lm ou loess
+  geom_xsideboxplot(aes(fill = Treinador),alpha = 0.5) +
+  geom_ysideboxplot(aes(fill = Treinador),alpha = 0.5) + #
+  stat_ellipse(geom="polygon", aes(fill = Treinador), alpha = 0.2, show.legend = TRUE,level = 0.25) + 
+  theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))+
+  scale_color_tq() + scale_fill_tq() + theme_tq() 
+
+#ggsave(width = 20, height = 13, device = "pdf", filename = "2024_2_1_tempo")
+
+p4 <- data.frame(p4)
+
+ggplot(p4, aes(x = reorder(Fase, Rota), y = Data, colour = Treinador)) + 
+  geom_boxplot(aes(full = Treinador)) +
+  geom_point(aes(size = N.0, shape = Contato), alpha = 0.4) + 
+  scale_shape_manual(values = 0:10) +
+  scale_size(range = c(5, 18), name = "Nível") +
+  theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))+
+  labs(x="Rota")+
+  scale_color_tq() + scale_fill_tq() + theme_tq() + coord_flip()
+
+#ggsave(width = 20, height = 13, device = "pdf", filename = "2024_1_tempo2")
+```
+## Adversários
+Adversários vencidos
+```
+pacman::p_load(ggside, stringr) #, tidyverse,tidyquant)
+
+p3 <- subset(pbase2, !is.na(Ano))
+p3 <- subset(p3, !is.na(Mês))
+p3 <- subset(p3, !is.na(Dia))
+Data <- p3 %>% 
+  select(Ano,Mês,Dia) %>% 
+  mutate(Data = make_date(Ano,Mês,Dia))
+Data <- data.frame(p3,Data)
+p2 <- Data
+p3 <- p2 %>% filter(str_detect(T.Encontro, "5")) 
+
+p4 <- p3
+#p4 <- subset(p4,Tipo!="Grass") 
+
+#p4 <- p4 %>%  subset(Fator > 75)
+
+ggplot(p4, aes(x = N.0, y = Tag)) + 
+  geom_jitter(aes(size = Atributo.T, color = Treinador), alpha = 0.6) + 
+  scale_shape_manual(values = 0:10) +
+  geom_boxplot(alpha = 0.2) +
+  scale_size(range = c(1, 11), name = "Atributo total") +
+  labs(title=" ", subtitle="",y="Tipo de treinador",x="Nível do Pokémon", caption="", shape = "", colour = "Treinador", size = "Atributo total") +
+  theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))+
+  scale_fill_tq() + scale_color_tq() + theme_tq() 
+
+#ggsave(width = 20, height = 13, device = "pdf", filename = "2024_2_adversários")
+```
+
+## Pókemns
+
+Agora, vamos ver os pokémons filogenéticamente
+
+```
+p2 <- pbase2
+p3 <- p2 %>% filter(str_detect(T.Encontro, "0")) 
+
+p4 <- p3
+
+ggplot(p4, aes(x = Atributo.T+N.0*6, y = Reino)) + 
+  geom_jitter(aes(size = N.0, color = Filo), alpha = 0.2) + 
+  facet_grid(Domínio~., scales = "free_y", space = "free_y") + 
+  geom_boxplot(aes(fill = Filo), alpha = 0.6) +
+  scale_size(range = c(1, 11), name = "Atributo total") +
+  labs(title=" ", subtitle="",y="Reino Pókemon",x="Atributos", caption="", shape = "", colour = "Filo Pókemon", fill = "Filo Pókemon", size = "Nível do Pókemon") +
+  theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))+
+  scale_fill_tq() + scale_color_tq() + theme_tq() 
+
+#ggsave(width = 20, height = 13, device = "pdf", filename = "2023_12_1_filo")
+``` 
+
+# Diversidade de Pokémons treinados
+``` 
+pacman::p_load(treemapify) 
+
+p2 <- pbase
+
+Data <- p2 %>% 
+  select(Ano,Mês,Dia) %>% 
+  mutate(Data = make_date(Ano,Mês,Dia))
+Data <- data.frame(p2,Data)
+
+p2 <- Data
+p3 <- p2 %>% filter(str_detect(T.Treinador, "Jogador"))
+#p3 <- p2 %>% filter(str_detect(XXXX, "XXX")) 
+
+#p3 <- p3 %>% filter(str_detect(Treinador, "Vinícius")) 
+#p3 <- rbind(p3,p4)
+p3 <- p3 %>% filter(str_detect(Jogo, "2")) #escolher artista
+p3 <- subset(p3, Jogo!="0") #retirar artista
+p3<-unique(p3)
+p4 <- p3
+
+#p2 <- subset(p2, XXXX == "XXXX")
+
+local<-reshape2::dcast(p4, Treinador + Nome +  Atributo.T + Treino ~ Região, value.var = "N.0", fun.aggregate = sum) #sum ou NULL
+local$Treino <- as.numeric(gsub(",", ".", local$Treino))
+
+soma <- local %>%
+   mutate(Soma = Atributo.T + Kanto*6 + Treino)
+
+
+local=data.frame(local, soma)
+local <- local[order(-local$Soma), ]
+
+ggplot(local, aes(area = Soma, fill = Nome, 
+  label = paste (Nome, Soma, sep = "\n"), subgroup = Treinador)) +
+  geom_treemap() +
+  geom_treemap_subgroup_text(place = "centre", grow = TRUE,
+                             alpha = 0.25, colour = "black",
+                             fontface = "italic") +
+  geom_treemap_text(colour = "white",
+                    place = "bottom",  size = 10) + 
+  #scale_color_tq() + scale_fill_tq() + 
+  theme_tq() +
+  theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14), legend.position = "none") 
+
+#ggsave(width = 20, height = 10, device = "pdf", filename = "2024_1_treinado")
+```
+Com todos os treinados
+```
+
+p2 <- Data
+p3 <- subset(p2, !is.na(Nome))
+p3 <- subset(p3, Jogo!="0") #retirar artista
+p3<-unique(p3)
+
+p4 <- p3
+
+
+local<-reshape2::dcast(p4, Treinador + Nome +  Atributo.T + Treino ~ Região, value.var = "N.0", fun.aggregate = sum) #sum ou NULL
+local$Treino <- as.numeric(gsub(",", ".", local$Treino))
+
+soma <- local %>%
+   mutate(Soma = Atributo.T + Kanto*6 + Treino)
+
+local=data.frame(local, soma)
+local <- local[order(-local$Soma), ]
+
+ggplot(local, aes(area = Soma, fill = Nome, 
+  label = paste (Nome, Soma, sep = "\n"), subgroup = Treinador)) +
+  geom_treemap() +
+  geom_treemap_subgroup_text(place = "centre", grow = TRUE,
+                             alpha = 0.25, colour = "black",
+                             fontface = "italic") +
+  geom_treemap_text(colour = "white",
+                    place = "bottom",  size = 10) + 
+  #scale_color_tq() + scale_fill_tq() + 
+  theme_tq() +
+  theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14), legend.position = "none") 
+
+#ggsave(width = 20, height = 10, device = "pdf", filename = "2024_1_treinadototal")
+
+```
+
+## Dimensão
+
+Evidenciando os mais diferentes quanto a difrença de tamanho e peso
+``` 
+pacman::p_load(ggside, stringr) #, tidyverse,tidyquant)
+
+p2 <- Data
+#p2 <- planilhatotal
+#p3 <- p2 %>% filter(str_detect(Classe, "Mammalia"))
+#p3 <- p2 %>% filter(str_detect(N.E., "16")) 
+#p3 <- rbind(p3,p4)
+#p3 <- subset(p2, T.Treinador == "Jogador") #escolher Pokémon
+p3 <- p3 %>% filter(str_detect(Jogo, "2")) #escolher artista
+#p3 <- subset(p3, Route!="Parceria") #retirar artista
+p3<-unique(p3)
+
+p4 <- p3
+#p4 <- subset(p4,Tipo!="Grass") 
+
+#p4 <- p4 %>%  subset(Fator > 75)
+
+ggplot(p4, aes(x = Peso, y = Altura, colour = Treinador)) + 
+  geom_point(aes(shape = Treinador, size = Atributo.T + N.0*6)) + 
+  scale_shape_manual(values = 0:10) +
+  geom_label_repel(aes(label = Pokémon, colour = Treinador), size=2.5, alpha= 1,box.padding = 0.35,point.padding = 0.75,segment.color = 'grey50') +
+  geom_vline(xintercept = 80, alpha = 0.4)+
+  geom_hline(yintercept = 1.8, alpha = 0.4) +
+  #facet_grid(.~Treinador, scales = "free_y", space = "free_y") + #
+  #gghighlight(Fator > 75, label_key = Pokémon) +
+  scale_size(range = c(5, 18), name = "Pontos de atributos") +
+  theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))+
+  scale_color_tq() + scale_fill_tq() + theme_tq() 
+
+#ggsave(width = 20, height = 10, device = "pdf", filename = "2024_1_tamanho")
+``` 
+Evidenciando os mais diferentes quanto a tamanho geral
+``` 
+p2 <- Data
+#p2 <- planilhatotal
+#p3 <- p2 %>% filter(str_detect(Classe, "Mammalia"))
+#p3 <- p2 %>% filter(str_detect(N.E., "16")) 
+#p3 <- rbind(p3,p4)
+p3 <- subset(p2, T.Treinador == "Jogador") #escolher Pokémon
+#p3 <- subset(p3, Route!="Parceria") #retirar artista
+p3<-unique(p3)
+
+p4 <- p3
+#p4 <- subset(p4,Tipo!="Grass") 
+
+p4 <- p4 %>%  subset(Fator > 100)
+p4 <- p4 %>%  subset(Fator < 0.05)
+#p4 <- p4 %>%  subset(A_V > 99 | A_V < 1 | P_V > 99 | P_V < 1)
+
+
+ggplot(p4, aes(x = P_V, y = A_V, colour = Treinador)) + 
+  geom_point(aes(shape = Treinador, size = Fator)) + 
+  scale_shape_manual(values = 0:10) +
+  #geom_boxplot(aes(fill = Número)) +
+  geom_label_repel(aes(label = Pokémon, colour = Treinador), size=2.5, alpha= 1,box.padding = 0.35,point.padding = 0.75,segment.color = 'grey50') +
+  #facet_grid(.~Treinador, scales = "free_y", space = "free_y") + #
+  #gghighlight(Fator > 75, label_key = Pokémon) +
+  scale_size(range = c(5, 18), name = "Fator de diferença") +
+  theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))+
+  scale_color_tq() + scale_fill_tq() + theme_tq() 
+
+#ggsave(width = 20, height = 10, device = "pdf", filename = "2023_12_2")
+``` 
+
+#### Outro
+
+### Acumulação
 ```
 p2 <- Data
 
@@ -61,7 +440,7 @@ acum<-reshape2::dcast(p2, Data ~ Pokémon, value.var = "Total.dex", fun.aggregat
 acum=data.frame(acum, row.names=1)
 
 acumplot<-specaccum(acum) #dados de acumulação
-plot(acumplot) #curva simples
+#plot(acumplot) #curva simples
 plot(acumplot,ci.type="poly",col="black",lwd=2,ci.lty=0,ci.col="lightgrey",ylab="Riqueza",
      xlab="Dias de amostragem",main="Curva de acumulação de registros",las=1,font=1.5,font.lab=1.5,cex.lab=1,cex.axis=1) #curva clássica
 ```
@@ -104,8 +483,12 @@ ggplot(p3, aes(x = Data, y = sp4.richness)) +
   labs(title="Curva do coletor", subtitle="Total", y="Riqueza",x="Data", caption="",
        color = "Diversidade", size = "Abundancia de registros") +
   theme(axis.title = element_text(size = 18),
-        axis.text = element_text(size = 14)) + theme_classic() 
-#ggsave("Acum2.png",width = 14, height = 6, dpi = 300)
+        axis.text = element_text(size = 14)) +
+  #scale_color_tq() +
+  #scale_fill_tq() +
+  theme_tq() 
+  
+#ggsave("2023_09_07_Acum2.pdf",width = 14, height = 6, dpi = 300)
 ```
 ## Estimativa de riqueza
 
@@ -135,36 +518,6 @@ pool
 ```
 ### Diversidade
 
-Agora um gráfico unificado para Treinador (Rota, Paisagem)
-```
-p2 <- Data
-p3 <- subset(p2, T.Treinador == "Jogador") 
-
-local<-reshape2::dcast(p3, Sub ~ Treinador, value.var = "Total.dex", fun.aggregate = sum)
-local=data.frame(local, row.names=1)
-
-#Mude o q para 1 para comparar a diversidade de Shannon e para 2 para Simpson
-
-out <- iNEXT(local, q = 0,
-             datatype = "abundance",
-             size = seq(0, 150, length.out=20))
-
-R <- ggiNEXT(out, type = 1) +
-  theme_bw() +
-  labs(fill = "Áreas") +
-  #xlab("Riqueza) + 
-  #ylab("Tempo") +
-  scale_shape_manual(values = 0:19) +
-  theme_classic() +
-  theme(axis.title = element_text(size = 18), 
-        axis.text = element_text(size = 14), legend.position="bottom")
-
-R
-
-#ggsave(width = 20, height = 10, 
-       device = "png", filename = "Acum3", plot = R)
-    
-```
 Diversidade treinador (rota, paisagem)
 ```
 p2 <- Data
@@ -187,13 +540,17 @@ R <- R %>%
   xlab("Parâmetro de ordem de diversidade (q)") +
   ylab("Diversidade") +
   labs(col = "Tipos") +
-  theme_classic() +
+  scale_color_tq() +
+  scale_fill_tq() +
+  theme_tq() +
   theme(axis.title = element_text(size = 18), 
         axis.text = element_text(size = 14), legend.position="bottom")
 
 R  
 
 ```
+### Cluster
+
 Cluster de similaridade das rotas (Treinador)
 ```
 pacman::p_load("ade4")
@@ -207,48 +564,8 @@ hc <- hclust(d)               # apply hierarchical clustering
 plot(hc, labels=local$ID)    # plot the dendrogram
 
 ```
-Cluster de similaridade das rotas
-```
-pacman::p_load("ade4")
-p2 <- pbase
-p2 <- subset(p2, !is.na(Rota)) 
-p3 <- subset(p2, T.Treinador == "Selvagem") 
-p3 <- subset(p2, Encontro == "Walking") #enquanto não tem pesca
-p3[-1][p3[-1] < 0] <- 0 #transformar negativo em 0
+### PCA
 
-local<-reshape2::dcast(p3, Rota ~ Sub, value.var = "Raridade", fun = sum)
-local=data.frame(local, row.names=1)
-d <- dist.binary(local, method = 1, diag = FALSE, upper = FALSE) #method 1Rota is Jaccard index (1901) S3 coefficient of Gower & Legendre
-hc <- hclust(d)               # apply hierarchical clustering 
-plot(hc, labels=local$ID)    # plot the dendrogram
-
-```
-## PCA
-
-PCA para identificar a paisagem mais imortante por família de Pokémon
-```
-pacman::p_load(ggfortify, cluster)
-
-p2 <- Data
-
-#p2 <- subset(p2, Grupo == "Mastofauna")
-
-local<-reshape2::dcast(p2, Sub ~ Paisagem, value.var = "Total.dex", fun.aggregate = sum) #sum ou NULL
-local=data.frame(local, row.names=1)
-
-pca_res <- prcomp(local, scale. = TRUE)
-#autoplot(pca_res)
-
-local<-reshape2::dcast(p2, Sub + Classe ~ Paisagem, value.var = "Total.dex", fun.aggregate = sum) #sum ou NULL
-pca <-autoplot(pca_res, data = local, colour = 'Classe', label = TRUE, label.size = 4, 
-         frame = TRUE, frame.type = NULL, frame.color = 'Grupo', #ou frame.type = 't'
-         loadings = TRUE, loadings.colour = 'blue',loadings.label = TRUE, loadings.label.size = 3) +                   theme_classic() 
-pca
-
-#ggsave(width = 20, height = 10, device = "png", filename = "PCAabu", plot = pca)
-#path = "/home/user/Área de Trabalho/Serviços/ES - Rio Bananal/2021_03_03_Grancol/R"
-
-```
 E as rotas
 ```
 pacman::p_load(ggfortify, cluster)
@@ -265,7 +582,8 @@ pca_res <- prcomp(local, scale. = TRUE)
 local<-reshape2::dcast(p2, Família + Classe ~ Rota, value.var = "Total.dex", fun.aggregate = sum) #sum ou NULL
 pca <-autoplot(pca_res, data = local, colour = 'Classe', label = TRUE, label.size = 4, 
          frame = TRUE, frame.type = NULL, frame.color = 'Grupo', #ou frame.type = 't'
-         loadings = TRUE, loadings.colour = 'blue',loadings.label = TRUE, loadings.label.size = 3) +                   theme_classic() 
+         loadings = TRUE, loadings.colour = 'blue',loadings.label = TRUE, loadings.label.size = 3) +
+         scale_color_tq() + scale_fill_tq() + theme_tq() 
 pca
 ```
 E as rotas por subspécie
@@ -285,141 +603,55 @@ pca_res <- prcomp(local, scale. = TRUE)
 local<-reshape2::dcast(p2, Sub + Classe ~ Rota, value.var = "Total.dex", fun.aggregate = sum) #sum ou NULL
 pca <-autoplot(pca_res, data = local, colour = 'Classe', label = TRUE, label.size = 3, 
          frame = TRUE, frame.type = NULL, frame.color = 'Grupo', #ou frame.type = 't'
-         loadings = TRUE, loadings.colour = 'blue',loadings.label = TRUE, loadings.label.size = 4) +                   theme_classic() 
+         loadings = TRUE, loadings.colour = 'blue',loadings.label = TRUE, loadings.label.size = 4) +                   
+         scale_color_tq() + scale_fill_tq() + theme_tq() 
 pca
 
-
+#ggsave(width = 20, height = 10, device = "pdf", filename = "2023_09_07_PCAabu", plot = pca)
 ```
-### Análises eploratórias
-
-## Dimensão
-Tamanho x Peso
-``` 
-pacman::p_load(ggside, stringr) #, tidyverse,tidyquant)
-
-p2 <- Data
-p3 <- p2 %>% filter(str_detect(T.Treinador, "Jogador"))
-p3 <- p3 %>% filter(str_detect(Número, "41")) 
-#p3 <- rbind(p3,p4)
-#p3 <- subset(p3, Treinador == "Daniel") #escolher Pokémon
-#p3 <- subset(p3, Route!="Parceria") #retirar artista
-p3<-unique(p3)
-
-p4 <- p3
-#p4 <- subset(p4,Tipo!="Grass") 
-
-#p4 <- p4 %>%  subset(Peso < 20)
-
-ggplot(p4, aes(x = Peso, y = Altura)) + 
-  geom_point(aes(colour = Sub, size = IMC, shape = Rota), alpha = 0.6) + 
-  geom_smooth(method = lm,se = FALSE, alpha = 0.6, aes(colour = Sub)) +  #method = lm ou loess
-  scale_shape_manual(values = 0:10) +
-  geom_line(aes(colour = Sub), linetype = 2, linejoin = "mitre", lineend = "butt", alpha = 0.3) +
-  #facet_grid(.~Década, scales = "free_x", space = "free_x") + #
-  scale_size(range = c(5, 18), name = "Tamanho") +
-  #gghighlight(Treinador == "Vinícius", label_key = Treinador, unhighlighted_colour = "black") +
-  #gghighlight(IMC > 40) +
-  #geom_label_repel(aes(label = Treinador, colour = Sub), size=2.5, alpha= 1,box.padding = 0.35,point.padding = 0.75,segment.color = 'grey50') +
-  #labs(title=" ", subtitle="",y="Pontos",x="Ano de lançamento", caption="", shape = "Tipo de álbum", colour = "Artista_principal", size = "Número de audições") +
-  geom_xsideboxplot(aes(fill = Sub),alpha = 0.5) +
-  geom_ysideboxplot(aes(fill = Sub),alpha = 0.5) + #
-  stat_ellipse(geom="polygon", aes(fill = Sub), alpha = 0.2, show.legend = TRUE,level = 0.75) + 
-  theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))+
-  theme_classic()
-
-``` 
-Evidenciando os mais diferentes
-``` 
-pacman::p_load(ggside, stringr) #, tidyverse,tidyquant)
-
-p2 <- Data
-#p2 <- planilhatotal
-#p3 <- p2 %>% filter(str_detect(Classe, "Mammalia"))
-#p3 <- p2 %>% filter(str_detect(N.E., "16")) 
-#p3 <- rbind(p3,p4)
-p3 <- subset(p2, T.Treinador == "Jogador") #escolher Pokémon
-#p3 <- subset(p3, Route!="Parceria") #retirar artista
-p3<-unique(p3)
-
-p4 <- p3
-#p4 <- subset(p4,Tipo!="Grass") 
-
-#p4 <- p4 %>%  subset(Peso > 5)
-
-ggplot(p4, aes(x = IMC, y = Fator)) + 
-  geom_point(aes(shape = Treinador, size = IMC)) + 
-    scale_shape_manual(values = 0:10) +
-  #geom_boxplot(aes(fill = Número)) +
-  #facet_grid(.~Treinador, scales = "free_y", space = "free_y") + #
-  gghighlight(Fator > 75, label_key = Pokémon) +
-  scale_size(range = c(5, 18), name = "Densidade") +
-  theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))+
-  theme_classic()
-
-ggplot(p4, aes(x = IMC, y = Fator)) + 
-  geom_point(aes(shape = Treinador, size = Fator)) + 
-    scale_shape_manual(values = 0:10) +
-  #geom_boxplot(aes(fill = Número)) +
-  #facet_grid(.~Treinador, scales = "free_y", space = "free_y") + #
-  gghighlight(IMC > 100, label_key = Pokémon) +
-  scale_size(range = c(5, 18), name = "Densidade") +
-  theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))+
-  theme_classic()
-``` 
-## Rota
-
-Capturar por Tempo
-``` 
-pacman::p_load(ggside, stringr) #, tidyverse,tidyquant)
-
-p2 <- Data
-#p2 <- planilhatotal
-p3 <- p2 %>% filter(str_detect(T.Treinador, "Jogador"))
-#p4 <- p2 %>% filter(str_detect(XXXX, "XXXX")) 
-#p3 <- rbind(p3,p4)
-#p3 <- subset(p3, Route == "Parceria") #escolher artista
-#p3 <- subset(p3, Route!="Parceria") #retirar artista
-p3<-unique(p3)
-
-p4 <- p3
-#p4 <- subset(p4,Tipo!="Grass") 
-
-#p4 <- p4 %>%  subset(Total.Dex > 0.55)
-
-ggplot(p4, aes(x = Data, y = Fase)) + 
-  geom_point(aes(colour = Rota, size = Raridade, shape = Treinador), alpha = 0.6) + 
-  #geom_smooth(method = lm,se = FALSE, alpha = 0.6, aes(colour = Pokémon)) +  #method = lm ou loess
-  scale_shape_manual(values = 0:10) +
-  geom_line(aes(colour = Rota), linetype = 2, linejoin = "mitre", lineend = "butt", alpha = 0.3) +
-  #geom_hline(aes(yintercept = mean(Pontos)), linetype = "dashed", alpha = 0.4) + 
-  #facet_grid(Treinador~., scales = "free_x", space = "free_x") + #
-  scale_size(range = c(5, 18), name = "Raridade") +
-  #geom_label_repel(aes(label = Pokémon, colour = Rota), size=2.5, alpha= 1,box.padding = 0.35,point.padding = 0.75,segment.color = 'grey50') +
-  #labs(title=" ", subtitle="",y="Pontos",x="Ano de lançamento", caption="", shape = "Tipo de álbum", colour = "Artista_principal", size = "Número de audições") +
-  #geom_xsideboxplot(aes(fill = Rota),alpha = 0.5) +
-  geom_ysideboxplot(aes(fill = Rota),alpha = 0.5) + #
-  stat_ellipse(geom="polygon", aes(fill = Rota), alpha = 0.2, show.legend = TRUE,level = 0.75) + 
-  theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))+
-  theme_classic()
-
+### Adversários 
+Adversários na base - usaro p2 de adversário
 ```
-Diversidade de Pokémons 
-``` 
-pacman::p_load(treemapify) 
+p2 <- pbase2
+p3 <- p2 %>% filter(str_detect(T.Encontro, "4")) 
+
+p4 <- p3
+#p4 <- subset(p4,Tipo!="Grass") 
+
+#p4 <- p4 %>%  subset(Fator > 75)
+
+ggplot(p4, aes(x = N.0, y = Tag)) + 
+  geom_jitter(aes(size = Atributo.T, color = Encontro), alpha = 0.4) + 
+  scale_size(range = c(1, 11), name = "Atributo total") +
+  geom_boxplot(alpha = 0.2) +
+  labs(title="", subtitle="",y="Tipo de treinador",x="Nível do Pókemon", caption="", shape = "", colour = "Tipo de encontro", size = "Atributo total") +
+  theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))+
+  scale_fill_tq() + theme_tq() 
+```
+### Gráficos de área
+
+Diversidade de Pokémons em gráficos de área por jogador
+```
+p2 <- pbase
+
+Data <- p2 %>% 
+  select(Ano,Mês,Dia) %>% 
+  mutate(Data = make_date(Ano,Mês,Dia))
+Data <- data.frame(p2,Data)
 
 p2 <- Data
 p3 <- p2 %>% filter(str_detect(T.Treinador, "Jogador"))
 #p3 <- p2 %>% filter(str_detect(XXXX, "XXX")) 
 
-p3 <- p3 %>% filter(str_detect(Treinador, "Vinícius")) 
+#p3 <- p3 %>% filter(str_detect(Treinador, "Vinícius")) 
 #p3 <- rbind(p3,p4)
-#p3 <- p3 %>% filter(str_detect(Fase, "4")) #escolher artista
-p3 <- subset(p3, T.Treinador!="Dex") #retirar artista
+#p3 <- p3 %>% filter(str_detect(Jogo, "2")) #escolher artista
+p3 <- subset(p3, Jogo!="0") #retirar artista
 p3<-unique(p3)
 
 p4 <- p3
 
-#p2 <- subset(p2, XXXX == "XXXX")
+#p4 <- p4 %>%  subset(XXX > 0.6)
 
 local<-reshape2::dcast(p4, Linha.E + Sub ~ Região, value.var = "Total.dex", fun.aggregate = sum) #sum ou NULL
 #local=data.frame(local, row.names=1)
@@ -434,6 +666,33 @@ ggplot(local, aes(area = Kanto, fill = Sub,
                     place = "bottom",
                     size = 10) +
   theme_classic() +
+  theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14), legend.position = "none") 
+
+
+p2 <- Data
+p3 <- subset(p2, !is.na(Nome))
+p3 <- subset(p3, Jogo!="0") #retirar artista
+p3<-unique(p3)
+
+p4 <- p3
+
+
+local<-reshape2::dcast(p4, Treinador + Nome +  Atributo.T ~ Região, value.var = "N.0", fun.aggregate = sum) #sum ou NULL
+soma <- local %>%
+   mutate(Soma = Atributo.T + Kanto*6)
+
+local=data.frame(local, soma)
+
+ggplot(local, aes(area = Soma, fill = Nome, 
+  label = paste (Nome, Soma, sep = "\n"), subgroup = Treinador)) +
+  geom_treemap() +
+  geom_treemap_subgroup_text(place = "centre", grow = TRUE,
+                             alpha = 0.25, colour = "black",
+                             fontface = "italic") +
+  geom_treemap_text(colour = "white",
+                    place = "bottom",  size = 10) + 
+  #scale_color_tq() + scale_fill_tq() + 
+  theme_tq() +
   theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14), legend.position = "none") 
 
 ```
@@ -473,7 +732,7 @@ ggplot(local, aes(area = Kanto, fill = Sub,
 ```
 Raridade por Pokémon
 ```
-p2 <- pbase
+p2 <- pbase2
 p3 <- p2 %>% filter(str_detect(T.Treinador, "Selvagem"))
 #p3 <- p2 %>% filter(str_detect(XXXX, "XXX")) 
 
@@ -506,185 +765,4 @@ ggplot(local, aes(area = Kanto, fill = Sub,
 
 ```
 
-### Outros 
-## Spider plot
-Raridade por jogador
-``` 
-pacman::p_load(ggside, ggradar)
-devtools::install_github("ricardo-bion/ggradar")
-
-p2 <- Data
-p3 <- p2 %>% filter(str_detect(T.Treinador, "Jogador"))
-p3<-unique(p3)
-local <-reshape2::dcast(p2, Pokémon + HP +	Att	+Def	+Satt +	Sdef +	Sped ~ Região, value.var = "Total.dex", fun.aggregate = sum)
-local=data.frame(local, row.names=1)
-
-
-ggradar(local, 
-        grid.label.size = 4,
-        axis.label.size = 4, 
-        group.point.size = 5,
-        group.line.width = 1.5,
-        legend.text.size= 10) +
-  labs(title = "Atributos")
-
-
-ggplot(p4, aes(x = Raridade, y = Número)) + 
-  geom_point(aes(colour = Treinador, size = IMC, shape = Classificação), alpha = 0.6) + 
-  #geom_smooth(method = lm,se = FALSE, alpha = 0.6, aes(colour = XXX)) +  #method = lm ou loess
-  scale_shape_manual(values = 0:10) +
-  #geom_line(aes(colour = XXX), linetype = 2, linejoin = "mitre", lineend = "butt", alpha = 0.3) +
-  #geom_hline(aes(yintercept = mean(Pontos)), linetype = "dashed", alpha = 0.4) + 
-  #facet_grid(.~Década, scales = "free_x", space = "free_x") + #
-  scale_size(range = c(5, 18), name = "IMC") +
-  #geom_label_repel(aes(label = Pokémon, colour = Treinador), size=2.5, alpha= 1,box.padding = 0.35,point.padding = 0.75,segment.color = 'grey50') +
-  #labs(title=" ", subtitle="",y="Pontos",x="Ano de lançamento", caption="", shape = "Tipo de álbum", colour = "Artista_principal", size = "Número de audições") +
-  #geom_xsideboxplot(aes(fill = Treinador),alpha = 0.5) +
-  #geom_ysideboxplot(aes(fill = Treinador),alpha = 0.5) + #
-  #stat_ellipse(geom="polygon", aes(fill = XXX), alpha = 0.2, show.legend = TRUE,level = 0.1) + 
-  theme_classic() +
-  theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))  
-  #, legend.position = "none"
-
-``` 
-#Filogenia
-Subespécies por data
-
-``` 
-p2 <- Data
-p3 <- p2 %>% filter(str_detect(T.Treinador, "Jogador"))
-#p3 <- p2 %>% filter(str_detect(XXXX, "XXX")) 
-
-#p3 <- p3 %>% filter(str_detect(XXXX, "XXX")) 
-#p3 <- rbind(p3,p4)
-#p3 <- p3 %>% filter(str_detect(XXXX, "XXX")) #escolher artista
-#p3 <- subset(p3, XXX!="XX") #retirar artista
-p3<-unique(p3)
-
-p4 <- p3
-#p4 <- subset(p4,XXXX!="XXX") 
-#p4 <- subset(p4,XXXX!="XX") 
-
-#p4 <- p4 %>%  subset(XXX > 0.6)
-
-ggplot(p4, aes(x = Data, y = Sub)) + 
-  geom_point(aes(colour = Rota, shape = Rota, size = Raridade), alpha = 0.6, stroke = 2) + 
-  geom_boxplot(alpha = 0.5) + 
-  scale_shape_manual(values = 0:12) +
-  #gghighlight(Artista == "EPMD", label_key = Álbum, unhighlighted_colour = "black") +  
-  facet_grid(Número~., scales = "free_y", space = "free_y") + 
-  #scale_size(range = c(5, 18), name = "Raridade") +
-  #labs(title=" ", subtitle="",y="Sub",x="Data", caption="", colour = "Tipo", shape = "Tipo", size = "Número de audições") +
-  #geom_xsideboxplot(aes(fill = Sub),alpha = 0.5) +
-  #geom_ysideboxplot(aes(fill = Sub),alpha = 0.5) + 
-  #stat_ellipse(geom="polygon", aes(fill = Sub), alpha = 0.2, show.legend = TRUE,level = 0.1) + 
-  theme_classic() +
-  theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14)) #, legend.position = "none") 
-
-``` 
-Filogenia de Pokémons por classe
-
-``` 
-p2 <- Data
-p3 <- p2 %>% filter(str_detect(T.Treinador, "Jogador"))
-#p3 <- p2 %>% filter(str_detect(XXXX, "XXX")) 
-
-#p3 <- p3 %>% filter(str_detect(XXXX, "XXX")) 
-#p3 <- rbind(p3,p4)
-#p3 <- p3 %>% filter(str_detect(XXXX, "XXX")) #escolher artista
-#p3 <- subset(p3, XXX!="XX") #retirar artista
-p3<-unique(p3)
-
-#p4 <- p3
-#p4 <- subset(p4,XXXX!="XXX") 
-#p4 <- subset(p4,XXXX!="XX") 
-
-#p4 <- p4 %>%  subset(XXX > 0.6)
-
-ggplot(p4, aes(x = Data, y = Família)) + 
-  geom_point(aes(colour = Pokémon, shape = Rota, size = IMC), alpha = 0.6, stroke = 2) + 
-  geom_boxplot(alpha = 0.5) + 
-  scale_shape_manual(values = 0:12) +
-  #gghighlight(Artista == "EPMD", label_key = Álbum, unhighlighted_colour = "black") +  
-  facet_grid(Classe~., scales = "free_y", space = "free_y") + 
-  scale_size(range = c(5, 18), name = "Raridade") +
-  #labs(title=" ", Pokémontitle="",y="Pokémon",x="Data", caption="", colour = "Tipo", shape = "Tipo", size = "Número de audições") +
-  #geom_xsideboxplot(aes(fill = Rota),alpha = 0.5) +
-  #geom_ysideboxplot(aes(fill = Pokémon),alpha = 0.5) + 
-  #stat_ellipse(geom="polygon", aes(fill = Pokémon), alpha = 0.2, show.legend = TRUE,level = 0.1) + 
-  theme_classic() +
-  theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14), legend.position = "none") 
-
-``` 
-## Selvagens
-Agrupamento dos pokémons selvagens
-
-``` 
-p2 <- planilhatotal
-p3 <- p2 %>% filter(str_detect(T.Treinador, "Selvagem"))
-#p3 <- p2 %>% filter(str_detect(XXXX, "XXX")) 
-
-#p3 <- p3 %>% filter(str_detect(XXXX, "XXX")) 
-#p3 <- rbind(p3,p4)
-#p3 <- p3 %>% filter(str_detect(XXXX, "XXX")) #escolher artista
-#p3 <- subset(p3, XXX!="XX") #retirar artista
-p3<-unique(p3)
-
-p4 <- p3
-#p4 <- subset(p4,XXXX!="XXX") 
-#p4 <- subset(p4,XXXX!="XX") 
-
-#p4 <- p4 %>%  subset(XXX > 0.6)
-
-ggplot(p4, aes(x = Altura, y = Linha.E)) + 
-  geom_point(aes(colour = Pokémon, shape = Rota, size = Raridade), alpha = 0.6, stroke = 2) + 
-  geom_boxplot(alpha = 0.5) + 
-  scale_shape_manual(values = 0:12) +
-  #gghighlight(Artista == "EPMD", label_key = Álbum, unhighlighted_colour = "black") +  
-  facet_grid(Classe~., scales = "free_y", space = "free_y") + 
-  scale_size(range = c(5, 18), name = "Raridade") +
-  #labs(title=" ", Pokémontitle="",y="Pokémon",x="Data", caption="", colour = "Tipo", shape = "Tipo", size = "Número de audições") +
-  #geom_xsideboxplot(aes(fill = Rota),alpha = 0.5) +
-  #geom_ysideboxplot(aes(fill = Pokémon),alpha = 0.5) + 
-  #stat_ellipse(geom="polygon", aes(fill = Pokémon), alpha = 0.2, show.legend = TRUE,level = 0.1) + 
-  theme_classic() +
-  theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14), legend.position = "none") 
-``` 
-
-
-
-
-
-``` 
-####################################
-Teste
-``` 
-
-
-
-
-
-
-
-
-
-
-
-paleta<-reshape2::dcast(p4, Sub + C1~ Total.dex, value.var = "Total.dex", fun = sum)
-excluir <- c("1")
-paleta <- paleta[,!(names(paleta)%in% excluir)]
-
-
-
-
-paleta <-c('Aquatilis R.' = "#495057",  'Brachyurus P.' = "#e71d36",  'Caerulea N' = "#00509d", 'Casia C.' = "#e6e6fa")
-
-paleta <- function(...) {
-  cols <- c(...)
-  if (is.null(cols))
-  return (paleta)
-  mycolors[cols]
-}
-
- 
- ``` 
+### Outros Teste
