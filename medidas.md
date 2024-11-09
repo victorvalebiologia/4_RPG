@@ -5,7 +5,7 @@ Análises e gráficos da campanha de Pokémon
 Primeiro, vamos indicar as pastas corretas.
 ```
 getwd()
-setwd("/home/user/Área de Trabalho/RPG/23_03_11_pokemon") 
+setwd("/home/valev/Área de Trabalho/R/pokemon") 
 ```
 
 Agora baixar e ler alguns pacotes básicos.
@@ -23,7 +23,7 @@ pacman::p_load(vegan)  #vegan para estatística ecológica/graphics para os grá
 Agora vamos adicionar a planilha.
 ```
 pacman::p_load(openxlsx)
-caminho.do.arquivo <- "/home/user/Área de Trabalho/RPG/23_03_11_pokemon/2023_03_11_pokemon.xlsx"
+caminho.do.arquivo <- "/home/valev/Área de Trabalho/Planilhas/2023_03_11_pokemon.xlsx"
 planilhatotal <- read.xlsx(caminho.do.arquivo, #local do arquivo
                            sheet = 1, # em qual planilha estão os dados
                            colNames = T, # as colunas dos dados possuem nomes?
@@ -55,6 +55,9 @@ Data <- data.frame(p3,Data)
 
 Agora um gráfico unificado para Treinador (Rota, Paisagem)
 ```
+install.packages(c("tibbletime", "dplyr", "ggplot2", "tidyverse"))
+
+
 p2 <- Data
 p2 <- subset(p2, T.Encontro == "1") 
 
@@ -67,23 +70,19 @@ local=data.frame(local, row.names=1)
 
 out <- iNEXT(local, q = 0,
              datatype = "abundance",
-             size = seq(0, 550, length.out=20))
+             size = seq(0, 1550, length.out=20))
 
-R <- ggiNEXT(out, type = 1) +
-  theme_bw() +
-  labs(fill = "Áreas") +
-  #xlab("Riqueza) + 
-  #ylab("Tempo") +
-  scale_shape_manual(values = 0:19) +
-  scale_fill_manual(values = rainbow(length(unique(p4$Treinador)))) +
-  theme_tq() +
-  theme(axis.title = element_text(size = 18), 
-        axis.text = element_text(size = 14), legend.position="bottom")
+# Criar o gráfico com ggiNEXT
+R <- ggiNEXT(out, type = 1) + 
+  labs(title = "Estimativa de Diversidade", 
+       x = "Tamanho da Amostra", 
+       y = "Diversidade") +
+  theme_minimal()
 
 R
 
 #ggsave(width = 20, height = 10, 
-       device = "pdf", filename = "2024_5_Acum", plot = R)
+       device = "pdf", filename = "2024_10_Acum", plot = R)
 
 ```
 
@@ -100,14 +99,21 @@ df <- df %>%
   group_by(Treinador) %>%
   mutate(Acumulado = row_number())
 
-ggplot(df, aes(x = Data, y = Acumulado, color = Treinador)) +
+# Criando o gráfico
+R <- ggplot(df, aes(x = Data, y = Acumulado, color = Treinador)) +
   geom_line() +
   geom_point() +
   labs(title = 'Curva de Acumulação de Pokémon por Treinador',
        x = 'Data de Captura',
        y = 'Número Acumulado de Pokémon') +
   theme_minimal() +
-  theme(legend.title = element_blank())
+  theme(legend.title = element_blank()) +
+  scale_shape_manual(values = c(0, 1, 2, 3, 4, 5, 6, 7, 8))  # Até 9 formas distintas
+
+R
+
+# Salvando o gráfico
+ggsave(filename = "2024_10_Acum_spps.pdf", plot = R, width = 20, height = 10, device = "pdf")
 
 ##################
 
@@ -121,7 +127,7 @@ p2 <- subset(p2, T.Encontro == "1")
 p3 <- subset(p2, T.Treinador == "Jogador") 
 
 # Lista de treinadores
-treinadores <- c("Afonso", "Daniel", "Felipe", "Hugo", "Samuel", "Tiago", "Tulipa", "Vinícius")
+treinadores <- c("Afonso", "Daniel", "Felipe", "Hugo", "Samuel", "Mardem", "Tiago", "Tulipa", "Vinícius")
 
 # Função para calcular a curva de acumulação de espécies
 calculate_specaccum <- function(p4) {
@@ -156,12 +162,12 @@ ggplot(df_combined, aes(x = Samples, y = Species, color = Treinador)) +
   labs(title = "Curva de Acumulação de Espécies por Treinador",
        x = "Número de Amostras",
        y = "Riqueza de Espécies") +
-  theme_tq() +
+  theme_minimal() +
   scale_fill_manual(values = rainbow(length(unique(df_combined$Treinador)))) +
    theme(axis.title = element_text(size = 18), 
         axis.text = element_text(size = 14), legend.position="bottom")
 
-
+ggsave(filename = "2024_10_Acum_pok.pdf", width = 20, height = 10, device = "pdf")
 ```
 Cluster de similaridade de Jaccard das rotas por pokémon por PAE
 
@@ -263,7 +269,7 @@ ggplot(dados_longos, aes(x = Pokemon, y = Media, fill = factor(Grupo))) +
        y = "Média de Presença") +
   scale_color_tq() +
   scale_fill_tq() +
-  theme_tq() +
+  theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   coord_flip()
 
@@ -276,7 +282,7 @@ pacman::p_load("ade4", "NbClust")
 
 p2 <- pbase2
 p2 <- subset(p2, !is.na(Tag)) 
-p3 <- subset(p2, T.Treinador == "NPC") 
+#p3 <- subset(p2, T.Treinador == "NPC") 
 p3 <- subset(p2, T.Encontro == "4") 
 #p3 <- subset(p2, Oponente == "Oponente") 
 #p3 <- subset(p2, Encontro == "Walking") #enquanto não tem pesca
@@ -294,7 +300,7 @@ hc <- hclust(d)               # apply hierarchical clustering
 plot(hc, labels=local$ID)    # plot the dendrogram
 
 altura_clusters <- sapply(1:10, function(k) {
-  cutree(hc, k = k) %>%
+  cutree(hc, k = 8) %>%
     table() %>%
     sum()  # soma total de observações nos clusters
 })
@@ -333,7 +339,7 @@ ggplot(dados_longos, aes(x = Pokemon, y = Media, fill = factor(Grupo))) +
        y = "Média de Presença") +
   scale_color_tq() +
   scale_fill_tq() +
-  theme_tq() +
+  theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   coord_flip()
 
@@ -387,7 +393,7 @@ ggplot(dados_longos, aes(x = Pokemon, y = Media, fill = factor(Grupo))) +
        y = "Média de Presença") +
   scale_color_tq() +
   scale_fill_tq() +
-  theme_tq() +
+  theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   coord_flip()
 
@@ -419,12 +425,12 @@ pca <-autoplot(pca_res, data = local, colour = 'Local', label = TRUE, label.size
          frame = TRUE, frame.type = NULL, frame.color = 'Local', #ou frame.type = 't'
          loadings = TRUE, loadings.colour = 'blue',loadings.label = TRUE, loadings.label.size = 3) +                   
          #scale_color_tq() + scale_fill_tq() + 
-         theme_tq() +
+         theme_minimal() +
          theme(legend.position = "none")  
 
 pca
 
-#ggsave(width = 20, height = 10, device = "pdf", filename = "2024_5_PCA", plot = pca)
+#ggsave(width = 20, height = 10, device = "pdf", filename = "2024_10_PCA", plot = pca)
 #path = "/home/user/Área de Trabalho/Serviços/ES - Rio Bananal/2021_03_03_Grancol/R"
 
 ```
@@ -454,11 +460,11 @@ local<-reshape2::dcast(p2, Pokémon + Reino ~ Local, value.var = "Total.dex", fu
 pca <-autoplot(pca_res, data = local, colour = 'Reino', label = TRUE, label.size = 4, 
          #frame = TRUE, frame.type = NULL, frame.color = 'Grupo', #ou frame.type = 't'
          loadings = TRUE, loadings.colour = 'blue',loadings.label = TRUE, loadings.label.size = 3) +                   
-         scale_color_tq() + scale_fill_tq() + theme_tq() 
+         theme_minimal() 
 
 pca
 
-#ggsave(width = 20, height = 10, device = "pdf", filename = "2024_5_PCA2", plot = pca)
+#ggsave(width = 20, height = 10, device = "pdf", filename = "2024_10_PCA2", plot = pca)
 #path = "/home/user/Área de Trabalho/Serviços/ES - Rio Bananal/2021_03_03_Grancol/R"
 
 
@@ -496,9 +502,9 @@ ggplot(p4, aes(x = Data, y = Fase)) +
   stat_ellipse(geom="polygon", aes(fill = Treinador), alpha = 0.2, show.legend = TRUE,level = 0.25) + 
   theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))+
   scale_fill_manual(values = rainbow(length(unique(p4$Treinador)))) +
-  theme_tq() 
+  theme_minimal() 
 
-#ggsave(width = 20, height = 13, device = "pdf", filename = "2024_5_tempo")
+#ggsave(width = 20, height = 13, device = "pdf", filename = "2024_10_tempo")
 
 ```
 Destaque gráfico lateral
@@ -508,7 +514,7 @@ ggplot(p4, aes(x = Data, y = Pokémon, colour = Treinador)) +
   #geom_smooth(aes(color = Treinador), se = TRUE, method = "loess") +
   stat_density(aes(y = after_stat(count), fill = Treinador), alpha = 0.5, size = 1, position = "stack") + #position = fill
   scale_fill_manual(values = rainbow(length(unique(p4$Treinador)))) +
-  theme_tq() +
+  theme_minimal() +
   labs(title = "Boxplot temporal para o coletor",
        subtitle = "Acumulação",
        x = "Tempo",
@@ -518,7 +524,7 @@ ggplot(p4, aes(x = Data, y = Pokémon, colour = Treinador)) +
     legend.position = "bottom",  # Posiciona a legenda à direita para melhor clareza
     axis.text.x = element_text(angle = 45, hjust = 1))  # Rotaciona os rótulos do eixo X para melhor leitura
   
-#ggsave("overlap2.png",width = 12, height = 8, dpi = 600)
+#ggsave("2024_10_overlap2.png",width = 12, height = 8, dpi = 600)
 
 ```
 Destque para as trilhas
@@ -533,9 +539,9 @@ ggplot(p4, aes(x = reorder(Rota, Fase), y = Data, colour = Treinador)) +
   theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))+
   labs(x="Rota") +
   scale_fill_manual(values = rainbow(length(unique(p4$Treinador)))) +
-  theme_tq() + coord_flip()
+  theme_minimal() + coord_flip()
 
-ggsave(width = 20, height = 13, device = "pdf", filename = "2024_5_tempo2")
+ggsave(width = 20, height = 13, device = "pdf", filename = "2024_10_tempo2")
 ```
 ## Adversários
 Adversários vencidos
@@ -559,7 +565,7 @@ p4 <- p3
 
 #p4 <- p4 %>%  subset(Fator > 75)
 
-ggplot(p4, aes(x = N.0, y = Tag)) + 
+ggplot(p4, aes(x = N.0, y = Tag_op)) + 
   geom_jitter(aes(size = Atributo.T, color = Treinador), alpha = 0.6) + 
   scale_shape_manual(values = 0:10) +
   geom_boxplot(alpha = 0.2) +
@@ -567,9 +573,9 @@ ggplot(p4, aes(x = N.0, y = Tag)) +
   labs(title=" ", subtitle="",y="Tipo de treinador",x="Nível do Pokémon", caption="", shape = "", colour = "Treinador", size = "Atributo total") +
   theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))+
   scale_fill_manual(values = rainbow(length(unique(p4$Treinador)))) +
-  theme_tq() 
+  theme_minimal() 
 
-#ggsave(width = 20, height = 13, device = "pdf", filename = "2024_5_adversários")
+#ggsave(width = 20, height = 13, device = "pdf", filename = "2024_10_adversários")
 ```
 
 ## Pókemns
@@ -592,7 +598,7 @@ ggplot(p4, aes(x = Atributo.T+N.0*6, y = Filo)) +
   labs(title=" ", subtitle="",y="Reino Pókemon",x="Atributos", caption="", shape = "", colour = "Filo Pókemon", fill = "Filo Pókemon", size = "Nível do Pókemon") +
   theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))+
   scale_fill_manual(values = rainbow(length(unique(p4$Classe)))) +
-  theme_tq() 
+  theme_minimal() 
 
 #ggsave(width = 20, height = 13, device = "pdf", filename = "2024_5_filo")
 ``` 
@@ -611,7 +617,7 @@ ggplot(p3, aes(x = N.0, y = Tipo)) +
   labs(x = "Nível", y = "Tipo") +
   geom_ysideboxplot(aes(fill = Tipo),alpha = 0.5) +
   scale_size(range = c(1, 11), name = "Atributo total") +
-  theme_tq() 
+  theme_minimal() 
 
 #ggsave(width = 20, height = 13, device = "pdf", filename = "2024_5_Tipo")
 ``` 
@@ -654,7 +660,7 @@ ggplot(dados_somados, aes(y = reorder(Rota, Fase), x = Riqueza, fill = Treinador
        x = "Riqueza",
        y = "Rota") +
   scale_fill_manual(values = rainbow(length(unique(dados_somados$Treinador)))) +
-  theme_tq() 
+  theme_minimal() 
   
 ggsave(width = 20, height = 10, device = "pdf", filename = "2024_5_rotaspok")  
 ```
@@ -686,7 +692,7 @@ ggplot(p4, aes(x = Peso, y = Altura, colour = Treinador)) +
   scale_size(range = c(5, 18), name = "Pontos de atributos") +
   theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))+
   scale_fill_manual(values = rainbow(length(unique(p4$Treinador)))) +
-  theme_tq() 
+  theme_minimal() 
 
 #ggsave(width = 20, height = 10, device = "pdf", filename = "2024_5_tamanho")
 ``` 
@@ -717,7 +723,7 @@ ggplot(p4, aes(x = P_V, y = A_V, colour = Treinador)) +
   #gghighlight(Fator > 75, label_key = Pokémon) +
   scale_size(range = c(5, 18), name = "Fator de diferença") +
   theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))+
-  scale_color_tq() + scale_fill_tq() + theme_tq() 
+  scale_color_tq() + scale_fill_tq() + theme_minimal() 
 
 #ggsave(width = 20, height = 10, device = "pdf", filename = "2023_12_2")
 ``` 
@@ -789,7 +795,7 @@ ggplot() +
   geom_point(data = df_mst_coordinates, aes(x = X, y = Y), color = "red") +
   geom_text_repel(data = df_mst_coordinates, aes(x = X, y = Y, label = nomes_localidades), vjust = -0.5) +
   labs(title = "Minimum Spanning Tree", x = "Comunidade", y = "Comunidade") +
-  scale_color_tq() + scale_fill_tq() + theme_tq() 
+  theme_minimal() 
 
 
 #ggsave(width = 20, height = 10, device = "pdf", filename = "2024_5_mst")
@@ -801,7 +807,7 @@ Tabale de atributos e golpes
 
 ``` 
 pacman::p_load(openxlsx)
-caminho.do.arquivo <- "/home/user/Área de Trabalho/RPG/23_03_11_pokemon/2023_03_11_pokemon.xlsx"
+caminho.do.arquivo <- "/home/valev/Área de Trabalho/Planilhas/2023_03_11_pokemon.xlsx"
 planilhatotal <- read.xlsx(caminho.do.arquivo, #local do arquivo
                            sheet = 7, # em qual planilha estão os dados
                            colNames = T, # as colunas dos dados possuem nomes?
@@ -839,7 +845,6 @@ p2 <- subset(p2, Jogo == 1)
 p2 <- p2[order(p2$Data),]
 p2 <- transform(p2, acumulado = ave(Atributo.T, Treinador, Nome, FUN = cumsum))
 
-
 ggplot(p2, aes(x = Data, y = acumulado, color = Treinador, group = interaction(Treinador, Nome))) +
   geom_line() +
   geom_text_repel(data = subset(p2, !duplicated(paste(Treinador, Pokémon))), aes(label = Nome), vjust = -0.5, nudge_y = 0.5, check_overlap = TRUE) +
@@ -847,36 +852,35 @@ ggplot(p2, aes(x = Data, y = acumulado, color = Treinador, group = interaction(T
        x = "Data", y = "Acúmulo do Atributo") +
   #facet_wrap(~Treinador, scales = "free_x", ncol = 4) +  # 'ncol' define o número de colunas no grid
   scale_color_manual(values = rainbow(length(unique(p2$Treinador)))) +  # Definir cores com base nos treinadores
-  theme_tq() +
+  theme_minimal() +
   theme(legend.position = "bottom")  # Posicionar a legenda na parte inferior
 
-#ggsave(width = 20, height = 10, device = "pdf", filename = "2024_5_tratotal")
+#ggsave(width = 20, height = 10, device = "pdf", filename = "2024_10_tratotal")
 ```
-
-Ganho e acúmulo de pontos por data e pr treinador
-
+Por treinador
 ```
 p2 <- Data
 p2$Data <- as.Date(p2$Data)
 
+#p2 <- subset(p2, !(Treinador %in% c("Felipe", "Vinícius")))
 p2 <- subset(p2, !(T.Treinador %in% c("Golpe")))
 #p2 <- subset(p2, Jogo == 1)
-p2 <- subset(p2, Treinador == "Hugo")
+p2 <- subset(p2, Treinador == "Mardem")
 
 p2 <- p2[order(p2$Data),]
-p2 <- transform(p2, acumulado = ave(Atributo.T, Treinador, Nome, FUN = cumsum))
+p2 <- transform(p2, acumulado = ave(Atributo.T, Linha.E, Nome, FUN = cumsum))
 
-ggplot(p2, aes(x = Data, y = acumulado, color = Linha.E, group = interaction(Treinador, Nome))) +
+ggplot(p2, aes(x = Data, y = acumulado, color = Linha.E, group = interaction(Linha.E, Nome))) +
   geom_line() +
-  geom_text_repel(data = subset(p2, !duplicated(paste(Treinador, Nome))), aes(label = Nome), vjust = -0.5, nudge_y = 0.5, check_overlap = TRUE) +
+  geom_text_repel(data = subset(p2, !duplicated(paste(Linha.E, Pokémon))), aes(label = Nome), vjust = -0.5, nudge_y = 0.5, check_overlap = TRUE) +
   labs(title = "Acúmulo de atributos por data",
        x = "Data", y = "Acúmulo do Atributo") +
   #facet_wrap(~Treinador, scales = "free_x", ncol = 4) +  # 'ncol' define o número de colunas no grid
   scale_color_manual(values = rainbow(length(unique(p2$Linha.E)))) +  # Definir cores com base nos treinadores
-  theme_tq() +
-  theme(legend.position = "None")  # Posicionar a legenda na parte inferior
+  theme_minimal() +
+  theme(legend.position = "none")  # Posicionar a legenda na parte inferior
 
-#ggsave(width = 20, height = 10, device = "pdf", filename = "2024_5_trhugo")
+ggsave(width = 20, height = 10, device = "pdf", filename = "2024_10_mar")
 ```
 
 
@@ -884,6 +888,7 @@ ggplot(p2, aes(x = Data, y = acumulado, color = Linha.E, group = interaction(Tre
 
 Escala de força
 ```
+install.packages("treemapify", dependencies = TRUE)
 pacman::p_load(treemapify, tidyr, rlang, reshape2) 
 
 p2 <- pbase
@@ -904,7 +909,7 @@ ggplot(local, aes(area = Kanto, fill = Linha.E,
   geom_treemap_text(colour = "white",
                     place = "bottom",  size = 10) + 
   scale_fill_manual(values = rainbow(length(unique(local$Linha.E)))) + # Escolher cores diferentes para cada Pokémon
-  theme_tq() +
+  theme_minimal() +
   theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14), legend.position = "none") 
 
 
@@ -923,7 +928,7 @@ ggplot(local, aes(x = reorder(Treinador, Kanto), y = Kanto, fill= Nome)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   scale_fill_manual(values = rainbow(length(unique(local$Nome))))  # Escolher cores diferentes para cada Pokémon
 
-ggsave(width = 20, height = 10, device = "pdf", filename = "2024_5_treinadoforça")
+ggsave(width = 20, height = 10, device = "pdf", filename = "2024_1_treinadoforça")
 ```
 
 #### Outro
@@ -985,7 +990,7 @@ ggplot(p3, aes(x = Data, y = sp4.richness)) +
         axis.text = element_text(size = 14)) +
   #scale_color_tq() +
   #scale_fill_tq() +
-  theme_tq() 
+  theme_minimal() 
   
 #ggsave("2023_09_07_Acum2.pdf",width = 14, height = 6, dpi = 300)
 ```
@@ -1041,7 +1046,7 @@ R <- R %>%
   labs(col = "Tipos") +
   scale_color_tq() +
   scale_fill_tq() +
-  theme_tq() +
+  theme_minimal() +
   theme(axis.title = element_text(size = 18), 
         axis.text = element_text(size = 14), legend.position="bottom")
 
@@ -1082,7 +1087,7 @@ local<-reshape2::dcast(p2, Família + Classe ~ Rota, value.var = "Total.dex", fu
 pca <-autoplot(pca_res, data = local, colour = 'Classe', label = TRUE, label.size = 4, 
          frame = TRUE, frame.type = NULL, frame.color = 'Grupo', #ou frame.type = 't'
          loadings = TRUE, loadings.colour = 'blue',loadings.label = TRUE, loadings.label.size = 3) +
-         scale_color_tq() + scale_fill_tq() + theme_tq() 
+         scale_color_tq() + scale_fill_tq() + theme_minimal() 
 pca
 ```
 E as rotas por subspécie
@@ -1103,7 +1108,7 @@ local<-reshape2::dcast(p2, Sub + Classe ~ Rota, value.var = "Total.dex", fun.agg
 pca <-autoplot(pca_res, data = local, colour = 'Classe', label = TRUE, label.size = 3, 
          frame = TRUE, frame.type = NULL, frame.color = 'Grupo', #ou frame.type = 't'
          loadings = TRUE, loadings.colour = 'blue',loadings.label = TRUE, loadings.label.size = 4) +                   
-         scale_color_tq() + scale_fill_tq() + theme_tq() 
+         scale_color_tq() + scale_fill_tq() + theme_minimal() 
 pca
 
 #ggsave(width = 20, height = 10, device = "pdf", filename = "2023_09_07_PCAabu", plot = pca)
@@ -1125,7 +1130,7 @@ ggplot(p4, aes(x = N.0, y = Tag)) +
   geom_boxplot(alpha = 0.2) +
   labs(title="", subtitle="",y="Tipo de treinador",x="Nível do Pókemon", caption="", shape = "", colour = "Tipo de encontro", size = "Atributo total") +
   theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))+
-  scale_fill_tq() + theme_tq() 
+  scale_fill_tq() + theme_minimal() 
 ```
 ### Gráficos de área
 
@@ -1191,7 +1196,7 @@ ggplot(local, aes(area = Soma, fill = Nome,
   geom_treemap_text(colour = "white",
                     place = "bottom",  size = 10) + 
   #scale_color_tq() + scale_fill_tq() + 
-  theme_tq() +
+  theme_minimal() +
   theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14), legend.position = "none") 
 
 ```
@@ -1263,5 +1268,31 @@ ggplot(local, aes(area = Kanto, fill = Sub,
   theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14), legend.position = "none") 
 
 ```
+Ganho e acúmulo de pontos por data e pr treinador
+
+```
+p2 <- Data
+p2$Data <- as.Date(p2$Data)
+
+p2 <- subset(p2, !(T.Treinador %in% c("Golpe")))
+#p2 <- subset(p2, Jogo == 1)
+p2 <- subset(p2, Treinador == "Hugo")
+
+p2 <- p2[order(p2$Data),]
+p2 <- transform(p2, acumulado = ave(Atributo.T, Treinador, Nome, FUN = cumsum))
+
+ggplot(p2, aes(x = Data, y = acumulado, color = Linha.E, group = interaction(Treinador, Nome))) +
+  geom_line() +
+  geom_text_repel(data = subset(p2, !duplicated(paste(Treinador, Nome))), aes(label = Nome), vjust = -0.5, nudge_y = 0.5, check_overlap = TRUE) +
+  labs(title = "Acúmulo de atributos por data",
+       x = "Data", y = "Acúmulo do Atributo") +
+  #facet_wrap(~Treinador, scales = "free_x", ncol = 4) +  # 'ncol' define o número de colunas no grid
+  scale_color_manual(values = rainbow(length(unique(p2$Linha.E)))) +  # Definir cores com base nos treinadores
+  theme_minimal() +
+  theme(legend.position = "None")  # Posicionar a legenda na parte inferior
+
+#ggsave(width = 20, height = 10, device = "pdf", filename = "2024_5_trhugo")
+```
+
 
 ### Outros Teste
