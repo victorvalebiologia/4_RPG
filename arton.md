@@ -129,21 +129,21 @@ Data2 <- data.frame(Data,Data2)
 
 Acumulação por data e treinador
 ```
+
 p2 <- Data
 p3 <- subset(p2, N_categoria == "20") 
 p3 <- subset(p3, !is.na(Combate))
-
 
 df <- p3 %>% arrange(Data)
 
 df <- df %>%
   group_by(Personagem) %>%
-  mutate(Acumulado = row_number())
+  mutate(Acumulado = cumsum(ifelse(is.na(Quantidade), 0, Quantidade)))
 
 # Criando o gráfico
 R <- ggplot(df, aes(x = Data, y = Acumulado, color = Personagem)) +
   geom_line() +
-  geom_point() +
+  geom_jitter(aes(size = Quantidade)) +
   labs(title = '',
        x = 'Data do Combate',
        y = 'Número de Adversários') +
@@ -156,107 +156,86 @@ R
 # Salvando o gráfico
 ggsave(filename = "2025_3_Acum_spps.pdf", plot = R, width = 20, height = 10, device = "pdf")
 
+
 ```
 Agora o acumualdo por espécie
 ```
 # Carregar pacotes necessários
-pacman::p_load(dplyr, tidyr, vegan, ggplot2, purrr, reshape2)
+pacman::p_load(dplyr, ggplot2)
 
 # Filtrar os dados
 p3 <- Data %>% filter(N_categoria == "20", !is.na(Combate))
 
-# Lista de treinadores
-treinadores <- c("Bryn", "Zirk", "Baltazar Sauvage", "Darius Ravnus")
+# Criar um data frame com a quantidade total de espécies por treinador e oponente
+df_ponteiros <- p3 %>%
+  filter(Personagem %in% Personagem) %>%
+  group_by(Personagem, Oponente, Combate) %>%
+  summarise(Total_Quantidade = sum(Quantidade, na.rm = TRUE)) %>%
+  ungroup()
 
-# Função para calcular a curva de acumulação de espécies
-calculate_specaccum <- function(df) {
-  # Verifica se há mais de 1 amostra
-  if (nrow(df) < 2) return(NULL)  
-  
-  # Converte os dados para formato largo (wide) com a quantidade total por espécie (Oponente)
-  df_wide <- dcast(df, Data ~ Oponente, value.var = "Quantidade", fun.aggregate = sum, fill = 0)
-  
-  # Verifica se há pelo menos 2 espécies (colunas além de "Data")
-  if (ncol(df_wide) < 3) return(NULL)  
-  
-  # Remove a coluna "Data", que não é necessária para o cálculo da curva
-  df_wide <- df_wide %>% select(-Data)
-  
-  # Verifica se há pelo menos uma coluna com dados válidos (não zero ou NA)
-  if (all(colSums(df_wide, na.rm = TRUE) == 0)) {
-    message("Todas as espécies possuem contagem zero ou dados ausentes.")
-    return(NULL)
-  }
-  
-  # Calcula a curva de acumulação de espécies
-  specaccum_result <- specaccum(df_wide, method = "collector")
-  
-  return(specaccum_result)
-}
+df_ponteiros <- df_ponteiros %>% filter(!is.na(Combate) & Combate != "")
 
-# Calcular curvas para cada treinador (somente se houver dados suficientes)
-curvas_acumulacao <- map(setNames(treinadores, treinadores), function(treinador) {
-  df_treinador <- filter(p3, Personagem == treinador)
-  
-  # Verifica se há dados suficientes (mínimo 2 amostras e 2 oponentes)
-  curva <- calculate_specaccum(df_treinador)
-  if (!is.null(curva)) return(curva) else return(NULL)
-})
+# Criar gráfico de barras com os eixos invertidos
+ggplot(df_ponteiros, aes(x = Total_Quantidade, y = Oponente, fill = Personagem)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_text(aes(label = Total_Quantidade),  # Adiciona rótulos com os valores
+            position = position_dodge(width = 0.9),  # Garante que os rótulos fiquem alinhados às barras
+            vjust = 0.5,  # Ajusta a posição vertical dos rótulos
+            hjust = -0.2,  # Ajusta a posição horizontal para evitar sobreposição
+            size = 5) +  # Define o tamanho do texto
+  labs(title = "Total de Espécies por Oponente e Treinador",
+       x = "Total de Espécies Acumuladas",
+       y = "Oponente") +
+  theme_minimal() +
+  facet_wrap(~Combate, scales = "free") +  # Cada tipo de combate será um painel separado
+  theme(axis.title = element_text(size = 18), 
+        axis.text = element_text(size = 14), 
+        legend.position = "bottom") #+  scale_fill_manual(values = rainbow(length(Personagem)))
 
-# Remover treinadores sem dados suficientes
-curvas_acumulacao <- discard(curvas_acumulacao, is.null)
 
-# Criar um data frame combinando os resultados
-df_combined <- bind_rows(
-  map_dfr(names(curvas_acumulacao), 
-          ~ tibble(Treinador = .x, 
-                   Samples = curvas_acumulacao[[.x]]$sites, 
-                   Species = curvas_acumulacao[[.x]]$richness))
-)
-
-# Verificar se há dados suficientes para plotagem
-if (nrow(df_combined) > 0) {
-  df_combined <- df_combined %>%
-    filter(!is.na(Samples) & !is.na(Species))  # Remover valores ausentes
-
-  ggplot(df_combined, aes(x = Samples, y = Species, color = Treinador)) +
-    geom_line(linewidth = 1) +  # Substituído 'size' por 'linewidth'
-    labs(title = "Curva de Acumulação de Espécies por Treinador",
-         x = "Número de Amostras",
-         y = "Riqueza de Espécies") +
-    theme_minimal() +
-    scale_color_manual(values = rainbow(length(unique(df_combined$Treinador)))) +
-    theme(axis.title = element_text(size = 18), 
-          axis.text = element_text(size = 14), 
-          legend.position = "bottom")
-} else {
-  message("Nenhum treinador tem dados suficientes para gerar uma curva de acumulação.")
-}
 
 ggsave(filename = "2025_3_Acum_pok.pdf", width = 20, height = 10, device = "pdf")
 ```
 ### Similaridade
 Agora um jacard
 ```
-pacman::p_load("ade4", "NbClust")
+pacman::p_load("ade4", "NbClust", "reshape2", "dplyr")
 
+# Carregar os dados
 p2 <- pbase2
-p3 <- subset(p2, !is.na(Personagem)) 
-p3 <- subset(p2, !is.na(Classe)) 
-p3 <- subset(p2, T_Atributo == "Classe") 
+p2 <- p2[, !(names(p2) == "" | is.na(names(p2)))]
 
+# Filtrar dados
+p3 <- p2 %>%
+  filter(
+    !is.na(Personagem),
+    !is.na(Patrono),
+    N_categoria >= 20 & N_categoria <= 24)
+
+# Remover duplicatas
 p3 <- p3[!duplicated(p3), ]
 
-#p3[-1][p3[-1] < 0] <- 0 #transformar negativo em 0
+# Criar a tabela pivotante
+local <- dcast(p3, Personagem ~ Patrono, value.var = "Atributos", fun.aggregate = NULL, fill = 0)
 
-local<-reshape2::dcast(p3, Personagem ~ Classe + Raça, value.var = "Nível", fun = NULL)
-local=data.frame(local, row.names=1)
-local <- local %>%
-  mutate_all(~ ifelse(. > 0, 1, 0))
+# Definir Personagem como nome das linhas e remover a coluna
+local <- data.frame(local, row.names = 1)
 
-d <- dist.binary(local, method = 1, diag = FALSE, upper = FALSE) #method 1Rota is Jaccard index (1901) S3 coefficient of Gower & Legendre
-hc <- hclust(d)               # apply hierarchical clustering 
-plot(hc, labels=local$ID)    # plot the dendrogram
+# Remover linhas com NA (se houver)
+local <- na.omit(local)
+
+# Calcular a matriz de distâncias usando o índice de Jaccard
+d <- dist.binary(local, method = 1, diag = FALSE, upper = FALSE)
+
+# Substituir NA e Inf na matriz de distâncias
+d[is.na(d)] <- 0
+d[is.infinite(d)] <- max(d[!is.infinite(d)])
+
+# Aplicar hierarchical clustering
+hc <- hclust(d)
+
+# Plotar o dendrograma com rótulos
+plot(hc, labels = rownames(local), main = "Dendrograma de Personagens", xlab = "", sub = "")
 
 ```
 ## PCA
@@ -301,49 +280,51 @@ pca <- autoplot(pca_res, data = local, colour = 'T_bonus', label = TRUE, label.s
 
 pca
 
-#ggsave(width = 20, height = 10, device = "pdf", filename = "2024_10_PCA", plot = pca)
+ggsave(width = 20, height = 10, device = "pdf", filename = "2025_3_PCA", plot = pca)
 #path = "/home/user/Área de Trabalho/Serviços/ES - Rio Bananal/2021_03_03_Grancol/R"
 
 ```
 
-PCA para identificar a paisagem mais importante por Pokémon
+PCA para identificar a paisagem mais importante 
 ```
+pacman::p_load(ggfortify, cluster, reshape2, dplyr)
+
 p2 <- pbase2
 colnames(p2) <- make.names(colnames(p2), unique = TRUE)
 
 # Filtrando os dados
 p3 <- p2 %>%
   filter(!is.na(Personagem), 
-         !is.na(Bonus), 
-         !is.na(T_bonus), 
-         !is.na(Quantidade),
-         N_categoria == "20", 
-         Equipado == "1")
+         !is.na(Patrono), 
+         !is.na(Influência), 
+         between(as.numeric(N_categoria), 20, 22))
 
-# Criar matriz de dados com Personagem por Bonus
-local <- reshape2::dcast(p3, Personagem ~ Bonus, value.var = "Quantidade", fun.aggregate = length)
-local <- local[complete.cases(local), ]
-rownames(local) <- local$Personagem  # Usando Personagem como nome das linhas
-local <- local[, -1]  # Remover a coluna 'Personagem' agora usada como nome das linhas
+local <- reshape2::dcast(p3, Patrono + Influência ~ Personagem, 
+                          value.var = "Atributos", fun.aggregate = NULL)
 
-local_numeric <- local %>% select(where(is.numeric))
+# Garantindo que 'Patrono' seja única e usando como nome das linhas
+rownames(local) <- local$Patrono  
+local <- local[, -1]  # Removendo a coluna 'Patrono' já usada nos nomes das linhas
+
+# Selecionar apenas colunas numéricas para o PCA
+local_numeric <- local %>% select(where(is.numeric)) %>% na.omit()
 
 # Realizar PCA
 pca_res <- prcomp(local_numeric, scale. = TRUE)
 
-# Visualizar PCA com a variável T_bonus
-pca <- autoplot(pca_res, data = local_numeric, label = TRUE, label.size = 4, 
-                label.colour = 'black', # Cor dos rótulos para os personagens
+# Gerar o gráfico de PCA manualmente para garantir labels
+pca <- autoplot(pca_res, data = local, colour = 'Influência', label = TRUE, label.size = 4, 
+                frame = TRUE, frame.type = NULL, frame.color = 'Influência', 
                 loadings = TRUE, loadings.colour = 'blue', loadings.label = TRUE, 
-                loadings.label.size = 3) +                   
+                loadings.label.size = 3) +
    theme_minimal() +
    theme(legend.position = "none")
 
-# Exibir gráfico PCA
 pca
 
 
-#ggsave(width = 20, height = 10, device = "pdf", filename = "2024_10_PCA2", plot = pca)
+
+ggsave(width = 20, height = 10, device = "pdf", filename = "2025_3_PCA2", plot = pca)
 #path = "/home/user/Área de Trabalho/Serviços/ES - Rio Bananal/2021_03_03_Grancol/R"
 
 
@@ -370,8 +351,8 @@ p4 <- p3
 p4 <- p4 %>% arrange(Data)
 p4 <- p4 %>% arrange(Data2)
 
-ggplot(p4, aes(x = Data, y = Data2)) + 
-  geom_jitter(aes(colour = Personagem, size = Nível, shape = T_Atributo), alpha = 0.6) + 
+ggplot(p4, aes(x = Data2, y = Data)) + 
+  geom_jitter(aes(colour = Personagem, shape = T_Atributo), alpha = 0.6) + 
   geom_smooth(method = lm, se = FALSE, alpha = 0.6, aes(colour = Personagem)) + 
   scale_shape_manual(values = 0:10) +
   scale_size(range = c(5, 18), name = "Nível") +
@@ -420,140 +401,96 @@ MST (Minimum Spanning Tree): É uma técnica de análise de rede que encontra a 
 
 No gŕafico, as linhas representas as comunidades com menor cursto de coenxão e os pontos sem linhas as comunidades isoladas.
 ```
-pacman::p_load("ggplot2", "spaa", "recluster", "analogue", "ape", "vegan")
+pacman::p_load("ggplot2", "spaa", "recluster", "analogue", "ape", "vegan", "dplyr", "reshape2", "ggrepel")
 
+# Carregar e ajustar os dados
 p2 <- Data2
 colnames(p2) <- make.names(colnames(p2), unique = TRUE)
 
-# Filtrando os dados
+# Filtrar os dados
 p3 <- p2 %>%
-  filter(!is.na(Personagem),
-         !is.na(Estrutura),
-         N_categoria >= 19 & N_categoria <= 29)
-         
-local<-reshape2::dcast(p3, Estrutura ~ Personagem, value.var = "Código",fun.aggregate = NULL)
-local <- local[complete.cases(local), ]
-local=data.frame(local, row.names=1)
+  filter(!is.na(Personagem), Reino == "Deheon", !is.na(Bairro), N_categoria >= 19 & N_categoria <= 29)
+
+# Criar a matriz local e calcular a distância
+local <- reshape2::dcast(p3, Bairro ~ Personagem, value.var = "Código", fun.aggregate = NULL) %>%
+  na.omit() %>%
+  data.frame(row.names = 1)
 
 dist_matrix <- vegdist(local, method = "jaccard")
-dist_matrix[is.na(dist_matrix)] <- 0  # Por exemplo, substituir NA por 0
 mst_tree <- mst(dist_matrix)
-nomes_localidades <- rownames(local)
 
+# Calculando as coordenadas usando cmdscale
 mst_coordinates <- cmdscale(dist_matrix)
-
-# Converter os nomes das linhas em números inteiros
-indices_nos <- seq_len(nrow(mst_coordinates))
-rownames(mst_coordinates) <- indices_nos
-
-# Criar uma matriz de coordenadas das arestas
-edges <- which(mst_tree != 0, arr.ind = TRUE)
-edges <- cbind(edges, Value = mst_tree[edges])
-
-# Converter para dataframe
-df_arestas <- as.data.frame(edges)
-colnames(df_arestas) <- c("X1", "X2", "Value")
-
-# Criar dataframe vazio para as linhas
-df_lines <- data.frame()
-
-# Iterar sobre as arestas e adicionar as coordenadas ao dataframe df_lines
-for (i in seq_len(nrow(df_arestas))) {
-  indice_X1 <- df_arestas$X1[i]
-  indice_X2 <- df_arestas$X2[i]
-  
-  # Obter as coordenadas dos nós
-  coord_X1 <- mst_coordinates[indice_X1, 1]
-  coord_Y1 <- mst_coordinates[indice_X1, 2]
-  coord_X2 <- mst_coordinates[indice_X2, 1]
-  coord_Y2 <- mst_coordinates[indice_X2, 2]
-  
-  # Adicionar as coordenadas ao dataframe df_lines
-  df_lines <- rbind(df_lines, data.frame(X1 = coord_X1, Y1 = coord_Y1, X2 = coord_X2, Y2 = coord_Y2))
-}
-
-# Convertendo as coordenadas da matriz mst_coordinates em dataframe
 df_mst_coordinates <- as.data.frame(mst_coordinates)
 colnames(df_mst_coordinates) <- c("X", "Y")
 
-# Plotar a MST com ggplot2
+# Gerar as arestas da árvore
+edges <- which(mst_tree != 0, arr.ind = TRUE)
+df_lines <- data.frame(
+  X1 = mst_coordinates[edges[, 1], 1],
+  Y1 = mst_coordinates[edges[, 1], 2],
+  X2 = mst_coordinates[edges[, 2], 1],
+  Y2 = mst_coordinates[edges[, 2], 2]
+)
+
+# Plotando a MST com ggplot2
 ggplot() +
   geom_segment(data = df_lines, aes(x = X1, y = Y1, xend = X2, yend = Y2), color = "blue") +
   geom_point(data = df_mst_coordinates, aes(x = X, y = Y), color = "red") +
-  geom_text_repel(data = df_mst_coordinates, aes(x = X, y = Y, label = nomes_localidades), vjust = -0.5) +
+  geom_text_repel(data = df_mst_coordinates, aes(x = X, y = Y, label = rownames(df_mst_coordinates)), vjust = -0.5) +
   labs(title = "Minimum Spanning Tree", x = "Comunidade", y = "Comunidade") +
-  theme_minimal() 
+  theme_minimal()
 
 
 #ggsave(width = 20, height = 10, device = "pdf", filename = "2024_5_mst")
+
+
 ```
 E Personagens
 
 ```
+pacman::p_load("ggplot2", "spaa", "recluster", "analogue", "ape", "vegan", "dplyr", "reshape2", "ggrepel")
+
+# Carregar e ajustar os dados
 p2 <- Data2
 colnames(p2) <- make.names(colnames(p2), unique = TRUE)
 
-# Filtrando os dados
+# Filtrar os dados
 p3 <- p2 %>%
-  filter(!is.na(Personagem),
-         !is.na(Estrutura),
-         N_categoria >= 20 & N_categoria <= 23)
-         
-local<-reshape2::dcast(p3, Personagem ~ Bairro, value.var = "Código",fun.aggregate = NULL) #ou Estrutura
-local <- local[complete.cases(local), ]
-local=data.frame(local, row.names=1)
+  filter(!is.na(Personagem), !is.na(Estrutura), N_categoria >= 20 & N_categoria <= 23)
+
+# Criar a matriz local e calcular a distância
+local <- reshape2::dcast(p3, Personagem ~ Estrutura, value.var = "Código", fun.aggregate = NULL) %>%
+  na.omit() %>%
+  data.frame(row.names = 1)
 
 dist_matrix <- vegdist(local, method = "jaccard")
-dist_matrix[is.na(dist_matrix)] <- 0  # Por exemplo, substituir NA por 0
 mst_tree <- mst(dist_matrix)
-nomes_localidades <- rownames(local)
 
+# Calculando as coordenadas usando cmdscale
 mst_coordinates <- cmdscale(dist_matrix)
-
-# Converter os nomes das linhas em números inteiros
-indices_nos <- seq_len(nrow(mst_coordinates))
-rownames(mst_coordinates) <- indices_nos
-
-# Criar uma matriz de coordenadas das arestas
-edges <- which(mst_tree != 0, arr.ind = TRUE)
-edges <- cbind(edges, Value = mst_tree[edges])
-
-# Converter para dataframe
-df_arestas <- as.data.frame(edges)
-colnames(df_arestas) <- c("X1", "X2", "Value")
-
-# Criar dataframe vazio para as linhas
-df_lines <- data.frame()
-
-# Iterar sobre as arestas e adicionar as coordenadas ao dataframe df_lines
-for (i in seq_len(nrow(df_arestas))) {
-  indice_X1 <- df_arestas$X1[i]
-  indice_X2 <- df_arestas$X2[i]
-  
-  # Obter as coordenadas dos nós
-  coord_X1 <- mst_coordinates[indice_X1, 1]
-  coord_Y1 <- mst_coordinates[indice_X1, 2]
-  coord_X2 <- mst_coordinates[indice_X2, 1]
-  coord_Y2 <- mst_coordinates[indice_X2, 2]
-  
-  # Adicionar as coordenadas ao dataframe df_lines
-  df_lines <- rbind(df_lines, data.frame(X1 = coord_X1, Y1 = coord_Y1, X2 = coord_X2, Y2 = coord_Y2))
-}
-
-# Convertendo as coordenadas da matriz mst_coordinates em dataframe
 df_mst_coordinates <- as.data.frame(mst_coordinates)
 colnames(df_mst_coordinates) <- c("X", "Y")
 
-# Plotar a MST com ggplot2
+# Gerar as arestas da árvore
+edges <- which(mst_tree != 0, arr.ind = TRUE)
+df_lines <- data.frame(
+  X1 = mst_coordinates[edges[, 1], 1],
+  Y1 = mst_coordinates[edges[, 1], 2],
+  X2 = mst_coordinates[edges[, 2], 1],
+  Y2 = mst_coordinates[edges[, 2], 2]
+)
+
+# Plotando a MST com ggplot2
 ggplot() +
   geom_segment(data = df_lines, aes(x = X1, y = Y1, xend = X2, yend = Y2), color = "blue") +
   geom_point(data = df_mst_coordinates, aes(x = X, y = Y), color = "red") +
-  geom_text_repel(data = df_mst_coordinates, aes(x = X, y = Y, label = nomes_localidades), vjust = -0.5) +
+  geom_text_repel(data = df_mst_coordinates, aes(x = X, y = Y, label = rownames(df_mst_coordinates)), vjust = -0.5) +
   labs(title = "Minimum Spanning Tree", x = "Comunidade", y = "Comunidade") +
-  theme_minimal() 
+  theme_minimal()
 
 
-#ggsave(width = 20, height = 10, device = "pdf", filename = "2024_5_mst")
+#ggsave(width = 20, height = 10, device = "pdf", filename = "2025_3_mst")
 ```
 
 ## Tabela de atributos
@@ -561,6 +498,8 @@ ggplot() +
 E filtrar e montar a pespectiva de data.
 ```
 # Filtrando os dados
+p2 <- Data2
+
 p3 <- subset(Data2, N_categoria == 20)
 #p3 <- p2 %>%   filter(N_categoria >= 20 & N_categoria <= 23)
 p3 <- p3[!is.na(p3$Atributos), ]
@@ -621,6 +560,100 @@ wordcloud(words = names(word.freq),
           color = wes_palette("Darjeeling1"), 
           rot.per = 0.7)
 
+```
+Um mapa local
+
+```
+pacman::p_load(ggplot2, dplyr, ggrepel)
+
+p2 <- Data2
+colnames(p2) <- make.names(colnames(p2), unique = TRUE)
+
+p3 <- p2 %>%
+  filter(!is.na(Bairro),
+         !is.na(Personagem),
+         !is.na(Estrutura),
+         !is.na(E_2),
+         N_categoria %in% c("20"), 
+         #Grupo == "G5",
+         Reino == "Deheon") 
+
+p3 <- p3 %>% filter(is.finite(Longitude) & is.finite(Latitude))
+         
+# Criando um subconjunto com um único ponto por Estrutura
+p3_labels <- p3 %>%
+  group_by(Estrutura) %>%
+  slice(1)  # Pega apenas o primeiro ponto de cada grupo
+
+# Criando um subconjunto com um único ponto por Estrutura
+p3_labels2 <- p3 %>%
+  group_by(E_2) %>%
+  slice(1)  # Pega apenas o primeiro ponto de cada grupo
+
+p3 <- p3 %>% filter(is.finite(Longitude) & is.finite(Latitude))
+
+# Ordenando os dados pela coluna Data2
+p3 <- p3 %>% arrange(Data2)
+
+# Criando o gráfico
+ggplot(p3, aes(x = Longitude, y = Latitude, group = Personagem)) + 
+  # Linha conectando os pontos
+  geom_path(aes(colour = Personagem), size = 1, alpha = 0.6) + 
+  # Pontos (Personagens)
+  geom_jitter(aes(colour = Personagem, shape = Bairro), size = 4, alpha = 0.6) + 
+  scale_color_manual(values = rainbow(length(unique(p3$Personagem)))) +  
+  scale_shape_manual(values = c(0:20)) +  # Usa 21 símbolos diferentes
+  labs(title = "Mapa dos Personagens", 
+       x = "Longitude", 
+       y = "Latitude") +
+  # Rótulos das estruturas (apenas um ponto por Estrutura)
+  #geom_label_repel(data = p3_labels, aes(label = Estrutura), size = 4, color = "black", box.padding = 0.5) + 
+  # Rótulos das estruturas (apenas um ponto por detalhe)
+  geom_text_repel(data = p3_labels, aes(label = Estrutura), 
+                size = 4, color = "black", box.padding = 0.5,
+                max.overlaps = 15)  + 
+  #stat_ellipse(geom="polygon", aes(fill = Personagem), alpha = 0.2, show.legend = TRUE, level = 0.25) + 
+  theme_minimal() +
+  theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))
+
 
 
 ```
+Um mapa total
+
+```
+p2 <- Data2
+colnames(p2) <- make.names(colnames(p2), unique = TRUE)
+
+p3 <- p2 %>%
+  filter(!is.na(Personagem),
+         !is.na(Reino))  # Corrigi a condição do filtro
+
+p3 <- p3 %>% filter(is.finite(Longitude) & is.finite(Latitude))
+
+# Ordenando os dados pela coluna Data2
+p3 <- p3 %>% arrange(Data2)
+
+# Criando um subconjunto com um único ponto por Vila
+p3_labels <- p3 %>%
+  group_by(Vila) %>%
+  slice(1)  # Pega apenas o primeiro ponto de cada grupo
+
+ggplot(p3, aes(x = Longitude, y = Latitude, group = Reino)) + 
+  # Linha conectando os pontos
+  geom_path(aes(colour = Reino), size = 1, alpha = 0.6) + 
+  # Pontos (Personagens)
+  geom_jitter(aes(colour = Reino, shape = Jogador), size = 4, alpha = 0.6) + 
+  scale_color_manual(values = rainbow(length(unique(p3$Reino)))) +  
+  labs(title = "Mapa dos Personagens", 
+       x = "Longitude", 
+       y = "Latitude") +
+  # Rótulos das estruturas (apenas um ponto por Vila)
+  geom_text_repel(data = p3_labels, aes(label = Vila), 
+                size = 4, color = "black", box.padding = 0.5,
+                max.overlaps = 25) + 
+  scale_shape_manual(values = c(0:20)) + 
+  theme_minimal() +
+  theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))
+
+
