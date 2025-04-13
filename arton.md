@@ -5,7 +5,8 @@ Análises e gráficos da campanha de Pokémon
 Primeiro, vamos indicar as pastas corretas.
 ```
 getwd()
-setwd("/home/valev/Área de Trabalho/R/RPG/arton") 
+#setwd("/home/valev/Área de Trabalho/R/RPG/arton") 
+setwd("/home/victor-vale/Área de trabalho/R/RPG")
 ```
 
 Agora baixar e ler alguns pacotes básicos.
@@ -129,8 +130,7 @@ Data2 <- data.frame(Data,Data2)
 
 Acumulação por data e treinador
 ```
-
-p2 <- Data
+p2 <- Data2
 p3 <- subset(p2, N_categoria == "20") 
 p3 <- subset(p3, !is.na(Combate))
 
@@ -141,7 +141,7 @@ df <- df %>%
   mutate(Acumulado = cumsum(ifelse(is.na(Quantidade), 0, Quantidade)))
 
 # Criando o gráfico
-R <- ggplot(df, aes(x = Data, y = Acumulado, color = Personagem)) +
+R <- ggplot(df, aes(x = Data2, y = Acumulado, color = Personagem)) +
   geom_line() +
   geom_jitter(aes(size = Quantidade)) +
   labs(title = '',
@@ -196,48 +196,7 @@ ggplot(df_ponteiros, aes(x = Total_Quantidade, y = Oponente, fill = Personagem))
 
 ggsave(filename = "2025_3_Acum_pok.pdf", width = 20, height = 10, device = "pdf")
 ```
-### Similaridade
-Agora um jacard
-```
-pacman::p_load("ade4", "NbClust", "reshape2", "dplyr")
 
-# Carregar os dados
-p2 <- pbase2
-p2 <- p2[, !(names(p2) == "" | is.na(names(p2)))]
-
-# Filtrar dados
-p3 <- p2 %>%
-  filter(
-    !is.na(Personagem),
-    !is.na(Patrono),
-    N_categoria >= 20 & N_categoria <= 24)
-
-# Remover duplicatas
-p3 <- p3[!duplicated(p3), ]
-
-# Criar a tabela pivotante
-local <- dcast(p3, Personagem ~ Patrono, value.var = "Atributos", fun.aggregate = NULL, fill = 0)
-
-# Definir Personagem como nome das linhas e remover a coluna
-local <- data.frame(local, row.names = 1)
-
-# Remover linhas com NA (se houver)
-local <- na.omit(local)
-
-# Calcular a matriz de distâncias usando o índice de Jaccard
-d <- dist.binary(local, method = 1, diag = FALSE, upper = FALSE)
-
-# Substituir NA e Inf na matriz de distâncias
-d[is.na(d)] <- 0
-d[is.infinite(d)] <- max(d[!is.infinite(d)])
-
-# Aplicar hierarchical clustering
-hc <- hclust(d)
-
-# Plotar o dendrograma com rótulos
-plot(hc, labels = rownames(local), main = "Dendrograma de Personagens", xlab = "", sub = "")
-
-```
 ## PCA
 
 PCA para identificar a paisagem mais importante por família de Pokémon
@@ -253,8 +212,8 @@ p3 <- p2 %>%
          !is.na(Bonus), 
          !is.na(T_bonus), 
          !is.na(Quantidade),
-         N_categoria == "20", 
-         Equipado == "1")
+         N_categoria == "20",
+         Classe != "Masmorra")
 
 # Reshaping do dataframe
 local <- reshape2::dcast(p3, Bonus + T_bonus ~ Personagem, value.var = "Quantidade", fun.aggregate = length)
@@ -302,6 +261,8 @@ p3 <- p2 %>%
 local <- reshape2::dcast(p3, Patrono + Influência ~ Personagem, 
                           value.var = "Atributos", fun.aggregate = NULL)
 
+#local <- local %>% mutate(across(where(is.numeric), ~ ifelse(. > 0, 1, .)))
+  
 # Garantindo que 'Patrono' seja única e usando como nome das linhas
 rownames(local) <- local$Patrono  
 local <- local[, -1]  # Removendo a coluna 'Patrono' já usada nos nomes das linhas
@@ -343,7 +304,7 @@ colnames(p2) <- make.names(colnames(p2), unique = TRUE)
 p3 <- p2 %>%
   filter(!is.na(Personagem), 
          N_categoria == "20", 
-         Equipado == "1", 
+         #Equipado == "1", 
          #T_Atributo != "Base", 
          Ano_A >= 1330)
 
@@ -352,7 +313,7 @@ p4 <- p4 %>% arrange(Data)
 p4 <- p4 %>% arrange(Data2)
 
 ggplot(p4, aes(x = Data2, y = Data)) + 
-  geom_jitter(aes(colour = Personagem, shape = T_Atributo), alpha = 0.6) + 
+  geom_jitter(aes(colour = Personagem, shape = Categoria), alpha = 0.6) + 
   geom_smooth(method = lm, se = FALSE, alpha = 0.6, aes(colour = Personagem)) + 
   scale_shape_manual(values = 0:10) +
   scale_size(range = c(5, 18), name = "Nível") +
@@ -396,103 +357,6 @@ ggplot(p4, aes(x = Data2, y = T_Atributo, colour = Personagem)) +
 #ggsave("2025_3_overlap2.png",width = 12, height = 8, dpi = 600)
 
 ```
-
-MST (Minimum Spanning Tree): É uma técnica de análise de rede que encontra a árvore de menor custo que conecta todos os vértices de um grafo ponderado. Em biogeografia, a MST pode ser usada para identificar padrões de conectividade entre diferentes áreas geográficas com base em dados de distância ou similaridade.
-
-No gŕafico, as linhas representas as comunidades com menor cursto de coenxão e os pontos sem linhas as comunidades isoladas.
-```
-pacman::p_load("ggplot2", "spaa", "recluster", "analogue", "ape", "vegan", "dplyr", "reshape2", "ggrepel")
-
-# Carregar e ajustar os dados
-p2 <- Data2
-colnames(p2) <- make.names(colnames(p2), unique = TRUE)
-
-# Filtrar os dados
-p3 <- p2 %>%
-  filter(!is.na(Personagem), Reino == "Deheon", !is.na(Bairro), N_categoria >= 19 & N_categoria <= 29)
-
-# Criar a matriz local e calcular a distância
-local <- reshape2::dcast(p3, Bairro ~ Personagem, value.var = "Código", fun.aggregate = NULL) %>%
-  na.omit() %>%
-  data.frame(row.names = 1)
-
-dist_matrix <- vegdist(local, method = "jaccard")
-mst_tree <- mst(dist_matrix)
-
-# Calculando as coordenadas usando cmdscale
-mst_coordinates <- cmdscale(dist_matrix)
-df_mst_coordinates <- as.data.frame(mst_coordinates)
-colnames(df_mst_coordinates) <- c("X", "Y")
-
-# Gerar as arestas da árvore
-edges <- which(mst_tree != 0, arr.ind = TRUE)
-df_lines <- data.frame(
-  X1 = mst_coordinates[edges[, 1], 1],
-  Y1 = mst_coordinates[edges[, 1], 2],
-  X2 = mst_coordinates[edges[, 2], 1],
-  Y2 = mst_coordinates[edges[, 2], 2]
-)
-
-# Plotando a MST com ggplot2
-ggplot() +
-  geom_segment(data = df_lines, aes(x = X1, y = Y1, xend = X2, yend = Y2), color = "blue") +
-  geom_point(data = df_mst_coordinates, aes(x = X, y = Y), color = "red") +
-  geom_text_repel(data = df_mst_coordinates, aes(x = X, y = Y, label = rownames(df_mst_coordinates)), vjust = -0.5) +
-  labs(title = "Minimum Spanning Tree", x = "Comunidade", y = "Comunidade") +
-  theme_minimal()
-
-
-#ggsave(width = 20, height = 10, device = "pdf", filename = "2024_5_mst")
-
-
-```
-E Personagens
-
-```
-pacman::p_load("ggplot2", "spaa", "recluster", "analogue", "ape", "vegan", "dplyr", "reshape2", "ggrepel")
-
-# Carregar e ajustar os dados
-p2 <- Data2
-colnames(p2) <- make.names(colnames(p2), unique = TRUE)
-
-# Filtrar os dados
-p3 <- p2 %>%
-  filter(!is.na(Personagem), !is.na(Estrutura), N_categoria >= 20 & N_categoria <= 23)
-
-# Criar a matriz local e calcular a distância
-local <- reshape2::dcast(p3, Personagem ~ Estrutura, value.var = "Código", fun.aggregate = NULL) %>%
-  na.omit() %>%
-  data.frame(row.names = 1)
-
-dist_matrix <- vegdist(local, method = "jaccard")
-mst_tree <- mst(dist_matrix)
-
-# Calculando as coordenadas usando cmdscale
-mst_coordinates <- cmdscale(dist_matrix)
-df_mst_coordinates <- as.data.frame(mst_coordinates)
-colnames(df_mst_coordinates) <- c("X", "Y")
-
-# Gerar as arestas da árvore
-edges <- which(mst_tree != 0, arr.ind = TRUE)
-df_lines <- data.frame(
-  X1 = mst_coordinates[edges[, 1], 1],
-  Y1 = mst_coordinates[edges[, 1], 2],
-  X2 = mst_coordinates[edges[, 2], 1],
-  Y2 = mst_coordinates[edges[, 2], 2]
-)
-
-# Plotando a MST com ggplot2
-ggplot() +
-  geom_segment(data = df_lines, aes(x = X1, y = Y1, xend = X2, yend = Y2), color = "blue") +
-  geom_point(data = df_mst_coordinates, aes(x = X, y = Y), color = "red") +
-  geom_text_repel(data = df_mst_coordinates, aes(x = X, y = Y, label = rownames(df_mst_coordinates)), vjust = -0.5) +
-  labs(title = "Minimum Spanning Tree", x = "Comunidade", y = "Comunidade") +
-  theme_minimal()
-
-
-#ggsave(width = 20, height = 10, device = "pdf", filename = "2025_3_mst")
-```
-
 ## Tabela de atributos
 
 E filtrar e montar a pespectiva de data.
@@ -575,8 +439,10 @@ p3 <- p2 %>%
          !is.na(Estrutura),
          !is.na(E_2),
          N_categoria %in% c("20"), 
-         #Grupo == "G5",
-         Reino == "Deheon") 
+         Reino == "Deheon",
+         between(Latitude, -0.15, 0.15),
+         between(Longitude, -0.15, 0.15))
+
 
 p3 <- p3 %>% filter(is.finite(Longitude) & is.finite(Latitude))
          
@@ -611,12 +477,10 @@ ggplot(p3, aes(x = Longitude, y = Latitude, group = Personagem)) +
   # Rótulos das estruturas (apenas um ponto por detalhe)
   geom_text_repel(data = p3_labels, aes(label = Estrutura), 
                 size = 4, color = "black", box.padding = 0.5,
-                max.overlaps = 15)  + 
+                max.overlaps = 25)  + 
   #stat_ellipse(geom="polygon", aes(fill = Personagem), alpha = 0.2, show.legend = TRUE, level = 0.25) + 
   theme_minimal() +
   theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))
-
-
 
 ```
 Um mapa total
@@ -656,4 +520,220 @@ ggplot(p3, aes(x = Longitude, y = Latitude, group = Reino)) +
   theme_minimal() +
   theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))
 
+```
+Mapa das estruturas
+```
+pacman::p_load(ggplot2, dplyr, ggrepel)
 
+p2 <- Data2
+colnames(p2) <- make.names(colnames(p2), unique = TRUE)
+
+p3 <- p2 %>%
+  filter(
+    !is.na(Bairro),
+    #!is.na(Personagem),
+    !is.na(Estrutura),
+    !is.na(E_2),
+    !(N_categoria >= 22 & N_categoria <= 25),
+    Reino == "Deheon",
+    Latitude >= -0.15 & Latitude <= 0.15,
+    Longitude >= -0.15 & Longitude <= 0.15
+    #(Latitude < -0.15 | Latitude > 0.15),
+    #(Longitude < -0.15 | Longitude > 0.15)
+  )
+
+    
+p3 <- p3 %>% filter(is.finite(Longitude) & is.finite(Latitude))
+         
+# Criando um subconjunto com um único ponto por Estrutura
+p3_labels <- p3 %>%
+  group_by(Estrutura) %>%
+  slice(1)  # Pega apenas o primeiro ponto de cada grupo
+
+# Criando um subconjunto com um único ponto por Estrutura
+p3_labels2 <- p3 %>%
+  group_by(E_2) %>%
+  slice(1)  # Pega apenas o primeiro ponto de cada grupo
+
+# Ordenando os dados pela coluna Data2
+p3 <- p3 %>% arrange(Data2)
+
+
+# Criando o gráfico
+ggplot(p3, aes(x = Longitude, y = Latitude, group = Personagem)) + 
+  # Linha conectando os pontos
+  #geom_path(aes(colour = Personagem), size = 1, alpha = 0.6) + 
+  # Pontos (Personagens)
+  geom_jitter(aes(colour = Personagem, shape = Bairro), size = 4, alpha = 0.6) + 
+  scale_color_manual(values = rainbow(length(unique(p3$Personagem)))) +  
+  scale_shape_manual(values = c(0:20)) +  # Usa 21 símbolos diferentes
+  labs(title = "Mapa dos Personagens", 
+       x = "Longitude", 
+       y = "Latitude") +
+  # Rótulos das estruturas (apenas um ponto por Estrutura)
+  #geom_label_repel(data = p3_labels, aes(label = Estrutura), size = 4, color = "black", box.padding = 0.5) + 
+  # Rótulos das estruturas (apenas um ponto por detalhe)
+  geom_text_repel(
+  data = p3_labels %>% filter(!is.na(Longitude), !is.na(Latitude), !is.na(Estrutura)),
+  aes(x = Longitude, y = Latitude, label = Estrutura),
+  size = 4, color = "black", box.padding = 0.5,
+  max.overlaps = 25)  + 
+  #stat_ellipse(geom="polygon", aes(fill = Personagem), alpha = 0.2, show.legend = TRUE, level = 0.25) + 
+  theme_minimal() +
+  theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))
+
+
+
+
+```
+
+
+MST (Minimum Spanning Tree): É uma técnica de análise de rede que encontra a árvore de menor custo que conecta todos os vértices de um grafo ponderado. Em biogeografia, a MST pode ser usada para identificar padrões de conectividade entre diferentes áreas geográficas com base em dados de distância ou similaridade.
+
+No gŕafico, as linhas representas as comunidades com menor cursto de coenxão e os pontos sem linhas as comunidades isoladas.
+```
+pacman::p_load("ggplot2", "spaa", "recluster", "analogue", "ape", "vegan", "dplyr", "reshape2", "ggrepel")
+
+# Carregar e ajustar os dados
+p2 <- Data2
+colnames(p2) <- make.names(colnames(p2), unique = TRUE)
+
+# Filtrar os dados
+p3 <- p2 %>%
+  filter(!is.na(Personagem), Reino == "Deheon", !is.na(Bairro), N_categoria >= 19 & N_categoria <= 29)
+
+# Criar a matriz local e calcular a distância
+local <- reshape2::dcast(p3, Bairro ~ Personagem, value.var = "Código", fun.aggregate = NULL) %>%
+  na.omit() %>%
+  data.frame(row.names = 1)
+
+dist_matrix <- vegdist(local, method = "jaccard")
+mst_tree <- mst(dist_matrix)
+
+# Calculando as coordenadas usando cmdscale
+mst_coordinates <- cmdscale(dist_matrix)
+df_mst_coordinates <- as.data.frame(mst_coordinates)
+colnames(df_mst_coordinates) <- c("X", "Y")
+
+# Gerar as arestas da árvore
+edges <- which(mst_tree != 0, arr.ind = TRUE)
+df_lines <- data.frame(
+  X1 = mst_coordinates[edges[, 1], 1],
+  Y1 = mst_coordinates[edges[, 1], 2],
+  X2 = mst_coordinates[edges[, 2], 1],
+  Y2 = mst_coordinates[edges[, 2], 2]
+)
+
+# Plotando a MST com ggplot2
+ggplot() +
+  geom_segment(data = df_lines, aes(x = X1, y = Y1, xend = X2, yend = Y2), color = "blue") +
+  geom_point(data = df_mst_coordinates, aes(x = X, y = Y), color = "red") +
+  geom_text_repel(
+    data = df_mst_coordinates,
+    aes(x = X, y = Y, label = rownames(df_mst_coordinates)),
+    vjust = -0.5,
+    max.overlaps = 25
+  ) +
+  labs(title = "Minimum Spanning Tree", x = "Comunidade", y = "Comunidade") +
+  theme_minimal()
+
+
+
+#ggsave(width = 20, height = 10, device = "pdf", filename = "2024_5_mst")
+
+
+```
+E Personagens
+
+```
+pacman::p_load("ggplot2", "spaa", "recluster", "analogue", "ape", "vegan", "dplyr", "reshape2", "ggrepel")
+
+# Carregar e ajustar os dados
+p2 <- Data2
+colnames(p2) <- make.names(colnames(p2), unique = TRUE)
+
+# Filtrar os dados
+p3 <- p2 %>%
+  filter(!is.na(Personagem), !is.na(Estrutura), N_categoria >= 20 & N_categoria <= 23)
+
+# Criar a matriz local e calcular a distância
+local <- reshape2::dcast(p3, Personagem ~ Estrutura, value.var = "Código", fun.aggregate = NULL) %>%
+  na.omit() %>%
+  data.frame(row.names = 1)
+
+dist_matrix <- vegdist(local, method = "jaccard")
+mst_tree <- mst(dist_matrix)
+
+# Calculando as coordenadas usando cmdscale
+mst_coordinates <- cmdscale(dist_matrix)
+df_mst_coordinates <- as.data.frame(mst_coordinates)
+colnames(df_mst_coordinates) <- c("X", "Y")
+
+# Gerar as arestas da árvore
+edges <- which(mst_tree != 0, arr.ind = TRUE)
+df_lines <- data.frame(
+  X1 = mst_coordinates[edges[, 1], 1],
+  Y1 = mst_coordinates[edges[, 1], 2],
+  X2 = mst_coordinates[edges[, 2], 1],
+  Y2 = mst_coordinates[edges[, 2], 2]
+)
+
+# Plotando a MST com ggplot2
+ggplot() +
+  geom_segment(data = df_lines, aes(x = X1, y = Y1, xend = X2, yend = Y2), color = "blue") +
+  geom_point(data = df_mst_coordinates, aes(x = X, y = Y), color = "red") +
+  geom_text_repel(
+    data = df_mst_coordinates,
+    aes(x = X, y = Y, label = rownames(df_mst_coordinates)),
+    vjust = -0.5,
+    max.overlaps = 25
+  ) +
+  labs(title = "Minimum Spanning Tree", x = "Comunidade", y = "Comunidade") +
+  theme_minimal()
+
+
+#ggsave(width = 20, height = 10, device = "pdf", filename = "2025_3_mst")
+```
+
+### Similaridade
+Agora um jacard
+```
+pacman::p_load("ade4", "NbClust", "reshape2", "dplyr")
+
+# Carregar os dados
+p2 <- pbase2
+p2 <- p2[, !(names(p2) == "" | is.na(names(p2)))]
+
+# Filtrar dados
+p3 <- p2 %>%
+  filter(
+    !is.na(Personagem),
+    !is.na(Patrono),
+    N_categoria >= 20 & N_categoria <= 24)
+
+# Remover duplicatas
+p3 <- p3[!duplicated(p3), ]
+
+# Criar a tabela pivotante
+local <- dcast(p3, Personagem ~ Patrono, value.var = "Atributos", fun.aggregate = NULL, fill = 0)
+
+# Definir Personagem como nome das linhas e remover a coluna
+local <- data.frame(local, row.names = 1)
+
+# Remover linhas com NA (se houver)
+local <- na.omit(local)
+
+# Calcular a matriz de distâncias usando o índice de Jaccard
+d <- dist.binary(local, method = 1, diag = FALSE, upper = FALSE)
+
+# Substituir NA e Inf na matriz de distâncias
+d[is.na(d)] <- 0
+d[is.infinite(d)] <- max(d[!is.infinite(d)])
+
+# Aplicar hierarchical clustering
+hc <- hclust(d)
+
+# Plotar o dendrograma com rótulos
+plot(hc, labels = rownames(local), main = "Dendrograma de Personagens", xlab = "", sub = "")
+
+```
