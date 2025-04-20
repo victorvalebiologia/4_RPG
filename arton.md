@@ -164,7 +164,8 @@ Agora o acumualdo por espécie
 pacman::p_load(dplyr, ggplot2)
 
 # Filtrar os dados
-p3 <- Data %>% filter(N_categoria == "20", !is.na(Combate))
+#p3 <- Data %>% filter(N_categoria == "20", !is.na(Combate))
+p3 <- Data %>% filter(N_categoria == "20", Combate == "Vitória")
 
 # Criar um data frame com a quantidade total de espécies por treinador e oponente
 df_ponteiros <- p3 %>%
@@ -253,10 +254,14 @@ colnames(p2) <- make.names(colnames(p2), unique = TRUE)
 
 # Filtrando os dados
 p3 <- p2 %>%
-  filter(!is.na(Personagem), 
-         !is.na(Patrono), 
-         !is.na(Influência), 
-         between(as.numeric(N_categoria), 20, 22))
+  filter(
+    !is.na(Personagem), 
+    !is.na(Patrono), 
+    !is.na(Influência), 
+    between(as.numeric(N_categoria), 20, 22)
+  ) %>%
+  distinct(Evento, .keep_all = TRUE)
+  
 
 local <- reshape2::dcast(p3, Patrono + Influência ~ Personagem, 
                           value.var = "Atributos", fun.aggregate = NULL)
@@ -393,7 +398,8 @@ Um gráfico de nuvem
 pacman::p_load(tm, xml2, SnowballC, readr, dplyr, wordcloud, wesanderson)
 
 # Filtrar dados para remover NAs na coluna Evento
-p2 <- pbase %>% filter(!is.na(Evento))
+p2 <- pbase %>% filter(!is.na(Evento)) %>%
+  distinct(Evento, Personagem, .keep_all = TRUE)
 
 # Preparar o corpus de palavras
 words <- p2 %>% select(Evento) %>% pull()  # Usando pull() para extrair a coluna como vetor
@@ -404,8 +410,7 @@ word.corpus <- word.corpus %>%
   tm_map(removePunctuation) %>%   # Eliminar pontuação
   tm_map(removeNumbers) %>%       # Eliminar números
   tm_map(stripWhitespace) %>%     # Eliminar espaços extras
-  tm_map(content_transformer(tolower)) %>% # Converter para minúsculas
-  tm_map(stemDocument)            # Aplicar stemming (radicalização)
+  tm_map(content_transformer(tolower))  # Converter para minúsculas (sem stemming)
 
 # Criar a matriz de termos e frequências
 word.counts <- as.matrix(TermDocumentMatrix(word.corpus))
@@ -440,8 +445,8 @@ p3 <- p2 %>%
          !is.na(E_2),
          N_categoria %in% c("20"), 
          Reino == "Deheon",
-         between(Latitude, -0.15, 0.15),
-         between(Longitude, -0.15, 0.15))
+         between(Latitude, -0.20, 0.20),
+         between(Longitude, -0.20, 0.20))
 
 
 p3 <- p3 %>% filter(is.finite(Longitude) & is.finite(Latitude))
