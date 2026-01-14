@@ -262,9 +262,9 @@ p3 <- p3 %>%
          N_categoria == "20")
 
 
-p3 <- p3 %>% filter(Personagem %in% c("Bryn", "Artemisia Asteracea", "Elian Solhart"))
+p3 <- p3 %>% filter(Personagem %in% c("Bryn", "Artemisia Asteracea", "Kalizé"))
   
-#p3 <- p3 %>% filter(!Personagem %in% c("Bryn", "Artemisia Asteracea", "Elian Solhart"))
+#p3 <- p3 %>% filter(!Personagem %in% c("Bryn", "Artemisia Asteracea", "Kalizé"))
 
 # Reshaping do dataframe
 local <- reshape2::dcast(p3, Patrono + Personagem ~ Esfera, 
@@ -339,9 +339,9 @@ p3 <- p3 %>%
          !is.na(Esfera), 
          N_categoria == "20")
 
-p3 <- p3 %>% filter(Personagem %in% c("Bryn", "Artemisia Asteracea", "Elian Solhart"))
+p3 <- p3 %>% filter(Personagem %in% c("Bryn", "Artemisia Asteracea", "Kalizé"))
   
-#p3 <- p3 %>% filter(!Personagem %in% c("Bryn", "Artemisia Asteracea", "Elian Solhart"))
+#p3 <- p3 %>% filter(!Personagem %in% c("Bryn", "Artemisia Asteracea", "Kalizé"))
   
 # Reshaping do dataframe
 local <- reshape2::dcast(p3, Esfera + Personagem ~ Patrono, 
@@ -776,7 +776,7 @@ ggplot(p3, aes(x = Longitude, y = Latitude, group = Personagem)) +
   geom_text_repel(data = p3_labels, aes(label = Estrutura), 
                 size = 4, color = "black", box.padding = 0.5,
                 max.overlaps = 25)  + 
-  #stat_ellipse(geom="polygon", aes(fill = Personagem), alpha = 0.2, show.legend = TRUE, level = 0.25) + 
+  #stat_ellipse(geom="polygon", aes(fill = Personagem), alpha = 0.2, show.legend = TRUE, level = 0.75) + 
   theme_minimal() +
   theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))
 
