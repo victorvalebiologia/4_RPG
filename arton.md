@@ -1,8 +1,8 @@
 # Apresentação
-Análises e gráficos da campanha de Pokémon
+Análise das campanhas de RPG de Arton - Tormenta RPG
 
 ## Início
-Primeiro, vamos indicar as pastas corretas.
+Indicar as pastas corretas.
 ```
 getwd()
 #setwd("/home/valev/Área de Trabalho/R/RPG/arton") 
@@ -13,31 +13,25 @@ gc()  # Executa o garbage collector
 
 Agora baixar e ler alguns pacotes básicos.
 
-```
-if(!require(pacman, quietly = TRUE))(install.packages("pacman")) #agrupador de funções
-pacman::p_load(magrittr,dplyr,reshape2) #magrittr para operações de pipe/dplyr para manipulador de dados
-pacman::p_load(ggplot2, ggrepel, graphics,lubridate,gghighlight) #devtools, 
-pacman::p_load(forcats,iNEXT,tidyr,tibble,iNEXT)
-pacman::p_load(vegan,ggside)  #vegan para estatística ecológica/graphics para os gráficos
 
-
-#sudo apt-get install r-cran-devtools
+# Todos os pacotes do seu original (exceto graphics que é base)
 
 ```
-Agora vamos adicionar a planilha.
-```
-pacman::p_load(openxlsx)
-caminho.do.arquivo <- "/home/valev/Área de Trabalho/Planilhas/25_2_16_arton.xlsx"
-planilhatotal <- read.xlsx(caminho.do.arquivo, #local do arquivo
-                           sheet = 1, # em qual planilha estão os dados
-                           colNames = T, # as colunas dos dados possuem nomes?
-                           na.strings = "NA") # como estão identificados os dados omissos?
+pacotes <- c("magrittr", "dplyr", "reshape2", "ggplot2", "ggrepel",
+             "lubridate", "gghighlight", "forcats", "iNEXT", "tidyr",
+             "tibble", "vegan", "ggside")
 
-#tail(planilhatotal)
+# Instalar faltantes
+novos <- pacotes[!pacotes %in% installed.packages()]
+if(length(novos) > 0) install.packages(novos)
+
+# Carregar todos
+invisible(lapply(pacotes, require, character.only = TRUE))
+
 ```
-Ou pelo Google drive.
+Adicionar a planilha
 ```
-# Carregar pacotes necessários
+
 pacman::p_load(googledrive, googlesheets4, readxl, dplyr)
 
 # Autenticar no Google Drive
@@ -78,12 +72,11 @@ E filtrar e montar a pespectiva de data.
 ```
 p2 <- subset(planilhatotal, !is.na(Jogador)) #tirar n/a da ano
 p2 <- subset(p2, !is.na(Personagem)) #tirar n/a da pontos
+pbase <- p2
 
-p2 <- subset(p2, Grupo == "G5.1") 
+p2 <- subset(pbase, Grupo == "G5.1") 
 #p2 <- subset(p2, Grupo == "G5.2") 
 
-
-pbase2 <- p2 #sem data
 
 colnames(p2) <- make.names(colnames(p2), unique = TRUE)
 
@@ -139,7 +132,7 @@ p2 <- Data2
 p3 <- subset(p2, N_categoria == "20") 
 p3 <- subset(p3, !is.na(Combate))
 
-df <- p3 %>% arrange(Data)
+df <- p3 %>% arrange(Data2)
 
 df <- df %>%
   group_by(Personagem) %>%
@@ -262,9 +255,9 @@ p3 <- p3 %>%
          N_categoria == "20")
 
 
-p3 <- p3 %>% filter(Personagem %in% c("Bryn", "Artemisia Asteracea", "Kalizé"))
+p3 <- p3 %>% filter(Personagem %in% c("Bryn", "Artemisia Asteracea"))
   
-#p3 <- p3 %>% filter(!Personagem %in% c("Bryn", "Artemisia Asteracea", "Kalizé"))
+#p3 <- p3 %>% filter(!Personagem %in% c("Bryn", "Artemisia Asteracea"))
 
 # Reshaping do dataframe
 local <- reshape2::dcast(p3, Patrono + Personagem ~ Esfera, 
@@ -323,10 +316,7 @@ pca
 O contrário
 
 ```
-library(ggplot2)
-library(ggfortify)
-library(dplyr)
-library(ggrepel)
+pacman::p_load(dplyr, ggplot2, ggfortify, ggrepel)
 
 p3 <- tidyr::separate_rows(p2, Esfera, sep = "/")
 p3 <- tidyr::separate_rows(p3, Patrono, sep = "/")
@@ -339,9 +329,9 @@ p3 <- p3 %>%
          !is.na(Esfera), 
          N_categoria == "20")
 
-p3 <- p3 %>% filter(Personagem %in% c("Bryn", "Artemisia Asteracea", "Kalizé"))
+p3 <- p3 %>% filter(Personagem %in% c("Bryn", "Artemisia Asteracea"))
   
-#p3 <- p3 %>% filter(!Personagem %in% c("Bryn", "Artemisia Asteracea", "Kalizé"))
+#p3 <- p3 %>% filter(!Personagem %in% c("Bryn", "Artemisia Asteracea"))
   
 # Reshaping do dataframe
 local <- reshape2::dcast(p3, Esfera + Personagem ~ Patrono, 
@@ -395,6 +385,72 @@ pca <- ggplot(pca_scores, aes(x = PC1, y = PC2)) +
        fill = "Personagem")
 
 pca
+
+```
+Contelação de personagens
+
+```
+pacman::p_load(patchwork)
+
+
+p3 <- tidyr::separate_rows(p2, Esfera, sep = "/")
+p3 <- tidyr::separate_rows(p3, Patrono, sep = "/")
+
+p3 <- p3 %>%
+  filter(!is.na(Personagem), 
+         !is.na(Patrono), 
+         !is.na(Esfera), 
+         N_categoria == "20")
+
+# Função para criar gráficos PCA
+criar_pca_clean <- function(data, var_setas, titulo) {
+  local <- reshape2::dcast(data, Personagem ~ get(var_setas), 
+                          value.var = "N_categoria", 
+                          fun.aggregate = sum,
+                          na.rm = TRUE)
+  
+  local <- local[complete.cases(local), ]
+  local_numeric <- local %>% select(where(is.numeric))
+  
+  if(nrow(local_numeric) < 2) return(NULL)
+  
+  pca_res <- prcomp(local_numeric, scale. = TRUE)
+  pca_scores <- as.data.frame(pca_res$x)
+  pca_scores$Personagem <- local$Personagem
+  
+  ggplot(pca_scores, aes(x = PC1, y = PC2)) +
+    geom_point(aes(color = Personagem), size = 2.5) +
+    geom_text(aes(label = Personagem), size = 2.8, check_overlap = TRUE, 
+              vjust = -0.8) +
+    geom_segment(data = as.data.frame(pca_res$rotation * 2.8),
+                 aes(x = 0, y = 0, xend = PC1, yend = PC2),
+                 arrow = arrow(length = unit(0.08, "cm"))) +
+    geom_text(data = as.data.frame(pca_res$rotation * 3),
+              aes(x = PC1, y = PC2, label = rownames(pca_res$rotation)),
+              size = 2.5) +
+    theme_bw(base_size = 9) +
+    theme(
+      plot.title = element_text(hjust = 0.5),
+      legend.position = "none",
+      panel.grid = element_line(color = "gray95"),
+      plot.margin = margin(20, 20, 20, 20)  # Aumenta as margens
+    ) +
+    coord_cartesian(clip = "off") +  # IMPEDE QUE TEXTO SEJA CORTADO
+    labs(title = titulo, x = "PC1", y = "PC2")
+}
+
+# Criar gráficos
+q1 <- criar_pca_clean(p3, "Patrono", "Personagens × Deuses")
+q2 <- criar_pca_clean(p3, "Esfera", "Personagens × Esferas")
+
+# Mostrar gráficos
+if(!is.null(q1) && !is.null(q2)) {
+  q1 + q2
+} else if(!is.null(q1)) {
+  q1
+} else if(!is.null(q2)) {
+  q2
+}
 
 ```
 ### Análises eploratórias
@@ -472,10 +528,52 @@ ggplot(p3, aes(x = Data2, y = T_Atributo, colour = Personagem)) +
     axis.text.x = element_text(angle = 45, hjust = 1))  # Rotaciona os rótulos do eixo X para melhor leitura
   
 ggsave("2025_10_overlap2.png",width = 12, height = 8, dpi = 600)
+
+```
+Ano do jogo
+```
+p2 <- Data
+colnames(p2) <- make.names(colnames(p2), unique = TRUE)
+
+# Filtrando os dados
+p3 <- p2 %>%
+  filter(!is.na(Personagem), 
+         N_categoria == "20",
+         Ano_A >= 1330) %>%
+  distinct(Evento, .keep_all = TRUE)
+
+
+ggplot(p3, aes(x = Data, y = T_Atributo, colour = Personagem)) +
+  #geom_boxplot() +
+  #geom_smooth(aes(color = Personagem), se = TRUE, method = "loess") +
+  stat_density(aes(y = after_stat(count), fill = Personagem), alpha = 0.5, size = 1, position = "stack") + #position = fill
+  scale_fill_manual(values = rainbow(length(unique(p4$Personagem)))) +
+  theme_minimal() +
+  labs(title = "",
+       subtitle = "",
+       x = "Tempo",
+       y = "Personagem") +
+  theme(ggside.panel.scale.x = 0.2,
+    ggside.panel.scale.y = 0.2,
+    legend.position = "bottom",  # Posiciona a legenda à direita para melhor clareza
+    axis.text.x = element_text(angle = 45, hjust = 1))  # Rotaciona os rótulos do eixo X para melhor leitura
+
+
+        
+ggsave("2025_10_overlap2.png",width = 12, height = 8, dpi = 600)
+
 ```
 E de pizza
 ```
+p2 <- Data2
+colnames(p2) <- make.names(colnames(p2), unique = TRUE)
 
+# Filtrando os dados
+p3 <- p2 %>%
+  filter(!is.na(Personagem), 
+         N_categoria == "20") %>%
+  distinct(Evento, .keep_all = TRUE)
+  
 # Calcular a proporção de cada Personagem
 p3_pie <- p3 %>%
   group_by(Personagem) %>%
@@ -498,11 +596,8 @@ ggsave("2025_10_pizza.png",width = 12, height = 8, dpi = 600)
 ```
 Por dia da semana
 ```
+pacman::p_load(dplyr, ggplot2, lubridate, forcats)
 
-library(ggplot2)
-library(dplyr)
-library(lubridate)
-library(forcats)  # Para manipulação de fatores
 
 # Supondo que Data2 seja sua coluna de datas
 p4 <- p4 %>%
@@ -522,8 +617,36 @@ ggplot(p4, aes(x = Dia_Semana, fill = Personagem)) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),
         legend.position = "none")  # Remove legenda redundante
+
 ```
 
+Verificar habilidades
+```
+# Filtrar dados
+p3 <- p2 %>%
+  filter(!is.na(Personagem), 
+         N_categoria == "20",
+         Categoria == "Combate",
+         T_Atributo != "Dano")
+
+# Gráfico
+# Definir 10 shapes diferentes
+shapes_personalizados <- c(16, 17, 15, 18, 8, 3, 4, 0, 1, 2, 5, 6, 7, 9, 10)
+
+ggplot(p3, aes(x = N_Hab, y = Bonus, color = Personagem, shape = Classe)) +
+  geom_point(size = 3, alpha = 0.7) +
+  geom_text_repel(aes(label = D_bonus), size = 2.2, 
+                  box.padding = 0.3, max.overlaps = 30) +
+  facet_wrap(~ T_bonus, ncol = 1, scales = "free_y") +
+  labs(x = "Nível da Habilidade", y = "Habilidade") +
+  scale_shape_manual(values = shapes_personalizados) +
+  theme_minimal() +
+  theme(legend.position = "right",
+        strip.text = element_text(face = "bold"))  
+
+
+
+```
 ## Tabela de atributos
 
 E filtrar e montar a pespectiva de data.
@@ -734,7 +857,7 @@ p3 <- p2 %>%
          !is.na(Personagem),
          !is.na(Estrutura), 
          N_categoria == "20",
-         Reino == "Deheon", #Portsmouth
+         Reino == "Portsmouth", #Deheon
          !is.na(E_2))
 
 #p3 <- p3 %>% filter(N_categoria %in% c("20"),, between(Latitude, -0.15, 0.15), between(Longitude, -0.15, 0.15))
