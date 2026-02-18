@@ -157,85 +157,6 @@ ggsave(filename = "2025_10_Acum_spps.pdf", plot = R, width = 20, height = 10, de
 
 
 ```
-Agora o acumualdo por espécie, vitória
-```
-# Carregar pacotes necessários
-pacman::p_load(dplyr, ggplot2)
-
-# Filtrar os dados
-#p3 <- Data %>% filter(N_categoria == "20", !is.na(Combate))
-p3 <- Data %>% filter(N_categoria == "20", Combate == "Vitória")
-
-# Criar um data frame com a quantidade total de espécies por treinador e oponente
-df_ponteiros <- p3 %>%
-  filter(Personagem %in% Personagem) %>%
-  group_by(Personagem, Oponente, Combate, Classe.op) %>%
-  summarise(Total_Quantidade = sum(Quantidade, na.rm = TRUE)) %>%
-  ungroup()
-
-df_ponteiros <- df_ponteiros %>% filter(!is.na(Combate) & Combate != "")
-
-# Criar gráfico de barras com os eixos invertidos
-ggplot(df_ponteiros, aes(x = Total_Quantidade, y = Oponente, fill = Personagem)) +
-  geom_bar(stat = "identity", position = "dodge") +
-  geom_text(aes(label = Total_Quantidade),  # Adiciona rótulos com os valores
-            position = position_dodge(width = 0.9),  # Garante que os rótulos fiquem alinhados às barras
-            vjust = 0.5,  # Ajusta a posição vertical dos rótulos
-            hjust = -0.2,  # Ajusta a posição horizontal para evitar sobreposição
-            size = 5) +  # Define o tamanho do texto
-  labs(title = "Total de Espécies por Oponente e Treinador",
-       x = "Total de Espécies Acumuladas",
-       y = "Oponente") +
-  theme_minimal() +
-  facet_wrap(~Classe.op, scales = "free") +  # Cada tipo de combate será um painel separado
-  theme(axis.title = element_text(size = 18), 
-        axis.text = element_text(size = 14), 
-        legend.position = "bottom") #+  scale_fill_manual(values = rainbow(length(Personagem)))
-
-
-
-ggsave(filename = "2025_10_Acum_vit.pdf", width = 20, height = 10, device = "pdf")
-```
-
-Excluindo vitória
-```
-# Carregar pacotes necessários
-pacman::p_load(dplyr, ggplot2)
-
-# Filtrar os dados, excluindo "Vitória"
-p3 <- Data %>% filter(N_categoria == "20", Combate != "Vitória")
-
-# Criar um data frame com a quantidade total de espécies por treinador e oponente
-df_ponteiros <- p3 %>%
-  filter(Personagem %in% Personagem) %>%
-  group_by(Personagem, Oponente, Combate) %>%
-  summarise(Total_Quantidade = sum(Quantidade, na.rm = TRUE)) %>%
-  ungroup()
-
-df_ponteiros <- df_ponteiros %>% filter(!is.na(Combate) & Combate != "")
-
-# Criar gráfico de barras com os eixos invertidos
-ggplot(df_ponteiros, aes(x = Total_Quantidade, y = Oponente, fill = Personagem)) +
-  geom_bar(stat = "identity", position = "dodge") +
-  geom_text(aes(label = Total_Quantidade),  # Adiciona rótulos com os valores
-            position = position_dodge(width = 0.9),  # Garante que os rótulos fiquem alinhados às barras
-            vjust = 0.5,  # Ajusta a posição vertical dos rótulos
-            hjust = -0.2,  # Ajusta a posição horizontal para evitar sobreposição
-            size = 5) +  # Define o tamanho do texto
-  labs(title = "Total de Espécies por Oponente e Treinador",
-       x = "Total de Espécies Acumuladas",
-       y = "Oponente") +
-  theme_minimal() +
-  facet_wrap(~Combate, scales = "free") +  # Cada tipo de combate será um painel separado
-  theme(axis.title = element_text(size = 18), 
-        axis.text = element_text(size = 14), 
-        legend.position = "bottom") #+  scale_fill_manual(values = rainbow(length(Personagem)))
-
-
-
-ggsave(filename = "2025_10_Acum_s_vit.pdf", width = 20, height = 10, device = "pdf")
-```
-
 ## PCA
 
 PCA para identificar a paisagem mais importante por família de Pokémon
@@ -477,9 +398,11 @@ p4 <- p4 %>% arrange(Data2)
 
 ggplot(p4, aes(x = Data2, y = Data)) + 
   geom_jitter(aes(colour = Personagem, shape = Categoria), alpha = 0.6) + 
-  geom_smooth(method = lm, se = FALSE, alpha = 0.6, aes(colour = Personagem)) + 
+  geom_smooth(method = loess, se = FALSE, alpha = 0.6, aes(colour = Personagem)) + 
   scale_shape_manual(values = 0:10) +
   scale_size(range = c(5, 18), name = "Nível") +
+  scale_x_date(date_labels = "%B/%Y") +
+  scale_y_date(date_labels = "%B/%Y") +
   #stat_ellipse(geom="polygon", aes(fill = Personagem), alpha = 0.2, show.legend = TRUE, level = 0.25) + 
   # Adicionando boxplots laterais
   geom_ysideboxplot(aes(fill = Personagem), alpha = 0.5) + 
@@ -517,6 +440,7 @@ ggplot(p3, aes(x = Data2, y = T_Atributo, colour = Personagem)) +
   #geom_smooth(aes(color = Personagem), se = TRUE, method = "loess") +
   stat_density(aes(y = after_stat(count), fill = Personagem), alpha = 0.5, size = 1, position = "stack") + #position = fill
   scale_fill_manual(values = rainbow(length(unique(p4$Personagem)))) +
+  scale_x_date(date_labels = "%B/%Y") +
   theme_minimal() +
   labs(title = "",
        subtitle = "",
@@ -532,36 +456,35 @@ ggsave("2025_10_overlap2.png",width = 12, height = 8, dpi = 600)
 ```
 Ano do jogo
 ```
+library(ggside)
+
 p2 <- Data
 colnames(p2) <- make.names(colnames(p2), unique = TRUE)
 
-# Filtrando os dados
+# Filtrar dados
 p3 <- p2 %>%
   filter(!is.na(Personagem), 
          N_categoria == "20",
          Ano_A >= 1330) %>%
-  distinct(Evento, .keep_all = TRUE)
+  distinct(Evento, .keep_all = TRUE) %>%
+  mutate(Data = as.Date(Data)) %>%
+  filter(!is.na(Data))
 
-
-ggplot(p3, aes(x = Data, y = T_Atributo, colour = Personagem)) +
-  #geom_boxplot() +
-  #geom_smooth(aes(color = Personagem), se = TRUE, method = "loess") +
-  stat_density(aes(y = after_stat(count), fill = Personagem), alpha = 0.5, size = 1, position = "stack") + #position = fill
-  scale_fill_manual(values = rainbow(length(unique(p4$Personagem)))) +
-  theme_minimal() +
-  labs(title = "",
-       subtitle = "",
-       x = "Tempo",
-       y = "Personagem") +
-  theme(ggside.panel.scale.x = 0.2,
-    ggside.panel.scale.y = 0.2,
-    legend.position = "bottom",  # Posiciona a legenda à direita para melhor clareza
-    axis.text.x = element_text(angle = 45, hjust = 1))  # Rotaciona os rótulos do eixo X para melhor leitura
-
-
+# Gráfico com barra lateral de densidade
+if(nrow(p3) > 0) {
+  ggplot(p3, aes(x = Data, fill = Personagem)) +
+    geom_bar(position = "dodge", alpha = 0.8) +
+    geom_xsidedensity(aes(y = after_stat(count), fill = Personagem), 
+                      alpha = 0.5, position = "stack") +  # Densidade no topo
+    scale_fill_manual(values = rainbow(length(unique(p3$Personagem)))) +
+    scale_x_date(date_labels = "%B/%Y") +
+    labs(x = "Data", y = "Número de Eventos") +
+    theme_minimal() +
+    theme(legend.position = "bottom",
+          axis.text.x = element_text(angle = 45, hjust = 1),
+          ggside.panel.scale.x = 0.3)  # Ajusta tamanho da barra lateral
+}  
         
-ggsave("2025_10_overlap2.png",width = 12, height = 8, dpi = 600)
-
 ```
 E de pizza
 ```
@@ -594,34 +517,16 @@ ggplot(p3_pie, aes(x = "", y = Proporcao, fill = Personagem)) +
 ggsave("2025_10_pizza.png",width = 12, height = 8, dpi = 600)
 
 ```
-Por dia da semana
-```
-pacman::p_load(dplyr, ggplot2, lubridate, forcats)
 
-
-# Supondo que Data2 seja sua coluna de datas
-p4 <- p4 %>%
-  mutate(Dia_Semana = wday(Data2, label = TRUE, abbr = FALSE, week_start = 1)) %>%
-  mutate(Dia_Semana = fct_relevel(Dia_Semana, 
-                                 "segunda", "terça", "quarta", 
-                                 "quinta", "sexta", "sábado", "domingo"))
-
-# Alternativa: facet por personagem
-ggplot(p4, aes(x = Dia_Semana, fill = Personagem)) +
-  geom_bar() +
-  facet_wrap(~ Personagem) +
-  labs(title = "Distribuição de jogadas por dia da semana",
-       x = "Dia da Semana",
-       y = "Contagem") +
-  scale_fill_manual(values = rainbow(length(unique(p4$Personagem)))) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        legend.position = "none")  # Remove legenda redundante
-
-```
 
 Verificar habilidades
 ```
+
+p2 <- subset(planilhatotal, !is.na(Jogador)) #tirar n/a da ano
+p2 <- subset(p2, Grupo == "G5.1") 
+colnames(p2) <- make.names(colnames(p2), unique = TRUE)
+
+
 # Filtrar dados
 p3 <- p2 %>%
   filter(!is.na(Personagem), 
@@ -644,9 +549,75 @@ ggplot(p3, aes(x = N_Hab, y = Bonus, color = Personagem, shape = Classe)) +
   theme(legend.position = "right",
         strip.text = element_text(face = "bold"))  
 
-
+```
+Itens especiais
 
 ```
+
+p2 <- subset(planilhatotal, !is.na(Jogador)) #tirar n/a da ano
+p2 <- subset(p2, Grupo == "G5.1") 
+colnames(p2) <- make.names(colnames(p2), unique = TRUE)
+
+
+p3 <- p3 %>%
+  group_by(Personagem) %>%
+  mutate(label_unico = ifelse(duplicated(D_bonus) | duplicated(D_bonus, fromLast = TRUE), 
+                               NA, D_bonus)) %>%
+  ungroup()
+  
+# Filtrar dados
+p3 <- p2 %>%
+  filter(!is.na(Personagem), 
+         N_categoria == "20",
+         Categoria == "Item",
+         Equipado == 1,
+         Classe_I != "Item")  
+
+
+# Gráfico
+# Definir 10 shapes diferentes
+shapes_personalizados <- c(16, 17, 15, 18, 8, 3, 4, 0, 1, 2, 5, 6, 7, 9, 10)
+
+ggplot(p3, aes(x = N_Hab, y = Bonus, color = Personagem, shape = Classe_M, size = Quantidade)) +
+  geom_point(alpha = 0.7) +
+  geom_text_repel(aes(label = D_bonus), size = 2.2, box.padding = 0.3, max.overlaps = 30) +
+  facet_wrap(~ Classe_I, ncol = 1, scales = "free_y") +
+  labs(x = "Nível da Habilidade", y = "Habilidade") +
+  scale_shape_manual(values = shapes_personalizados) +
+  theme_minimal() +
+  theme(legend.position = "right",
+        strip.text = element_text(face = "bold"))
+        
+        
+```
+Outros Itens
+
+```
+
+p2 <- subset(planilhatotal, !is.na(Jogador)) #tirar n/a da ano
+p2 <- subset(p2, Grupo == "G5.1") 
+colnames(p2) <- make.names(colnames(p2), unique = TRUE)
+
+p3 <- p2 %>%
+  filter(!is.na(Personagem), 
+         N_categoria == "20",
+         Categoria == "Item",
+         Equipado == 1,
+         Classe_I == "Item")  
+
+ggplot(p3, aes(x = N_Hab, y = Bonus, color = Personagem, shape = T_bonus, size = Quantidade)) +
+  geom_point(alpha = 0.7) +
+  geom_text_repel(aes(label = D_bonus), size = 2.2, 
+                  box.padding = 0.3, max.overlaps = 30) +
+  #facet_wrap(~ Classe_I, ncol = 1, scales = "free_y") +
+  labs(x = "Nível da Habilidade", y = "Habilidade") +
+  scale_shape_manual(values = shapes_personalizados) +
+  theme_minimal() +
+  theme(legend.position = "right",
+        strip.text = element_text(face = "bold"))         
+       
+```
+
 ## Tabela de atributos
 
 E filtrar e montar a pespectiva de data.
@@ -778,7 +749,7 @@ ggplot(p3, aes(x = Longitude, y = Latitude, shape = Reino)) +
   labs(title = "Mapa dos Personagens", 
        x = "Longitude", 
        y = "Latitude") +
-  facet_wrap(~ Personagem, drop = TRUE, scales = "free", ncol = 3)+
+  facet_wrap(~ Personagem, drop = TRUE, scales = "free")+ #, ncol = 3
   theme_minimal() +
   theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))
   
@@ -837,7 +808,7 @@ ggplot() +
     vjust = -0.5,
     max.overlaps = 25
   ) +
-  labs(title = "Minimum Spanning Tree", x = "Comunidade", y = "Comunidade") +
+  labs(title = "Minimum Spanning Tree", x = "Proximidade", y = "Proximidade") +
   theme_minimal()
 
 
@@ -845,7 +816,7 @@ ggplot() +
 ggsave(width = 20, height = 10, device = "pdf", filename = "2024_10_mst_estrutura")
 
 ```
-Um mapa total para reinos
+Um mapa total para cada reino
 ```
 pacman::p_load(ggplot2, dplyr, ggrepel)
 
@@ -857,7 +828,7 @@ p3 <- p2 %>%
          !is.na(Personagem),
          !is.na(Estrutura), 
          N_categoria == "20",
-         Reino == "Portsmouth", #Deheon
+         Reino == "Portsmouth", #Deheon / Yuden / Zacahrov
          !is.na(E_2))
 
 #p3 <- p3 %>% filter(N_categoria %in% c("20"),, between(Latitude, -0.15, 0.15), between(Longitude, -0.15, 0.15))
@@ -906,8 +877,7 @@ ggplot(p3, aes(x = Longitude, y = Latitude, group = Personagem)) +
 ```
 Mapa total
 ```
-p2 <- Data2
-
+p2 <- subset(planilhatotal, !is.na(Jogador)) #tirar n/a da ano
 colnames(p2) <- make.names(colnames(p2), unique = TRUE)
 
 p3 <- p2 %>%
@@ -918,7 +888,7 @@ p3 <- p2 %>%
 p3 <- p3 %>% filter(is.finite(Longitude) & is.finite(Latitude))
 
 # Ordenando os dados pela coluna Data2
-p3 <- p3 %>% arrange(Data2)
+#p3 <- p3 %>% arrange(Data2)
 
 # Criando um subconjunto com um único ponto por Vila
 p3_labels <- p3 %>%
@@ -947,76 +917,9 @@ ggplot(p3, aes(x = Longitude, y = Latitude, group = Reino)) +
 
 
 
-
-Mapa das estruturas
-```
-pacman::p_load(ggplot2, dplyr, ggrepel)
-p2 <- subset(planilhatotal, !is.na(Jogador)) #tirar n/a da ano
-p2 <- subset(p2, !is.na(Personagem)) #tirar n/a da pontos
-
-colnames(p2) <- make.names(colnames(p2), unique = TRUE)
-
-p3 <- p2 %>%
-  filter(
-    !is.na(Personagem),
-    !is.na(Estrutura),
-    !is.na(E_2),
-    !(N_categoria >= 22 & N_categoria <= 25),
-    Reino == "Deheon")
-    
-    ,
-    Latitude >= -0.15 & Latitude <= 0.15,
-    Longitude >= -0.15 & Longitude <= 0.15
-    #(Latitude < -0.15 | Latitude > 0.15),
-    #(Longitude < -0.15 | Longitude > 0.15)
-  )
-
-    
-p3 <- p3 %>% filter(is.finite(Longitude) & is.finite(Latitude))
-         
-# Criando um subconjunto com um único ponto por Estrutura
-p3_labels <- p3 %>%
-  group_by(Estrutura) %>%
-  slice(1)  # Pega apenas o primeiro ponto de cada grupo
-
-# Criando um subconjunto com um único ponto por Estrutura
-p3_labels2 <- p3 %>%
-  group_by(E_2) %>%
-  slice(1)  # Pega apenas o primeiro ponto de cada grupo
-
-
-# Criando o gráfico
-ggplot(p3, aes(x = Longitude, y = Latitude, group = Personagem)) + 
-  # Linha conectando os pontos
-  #geom_path(aes(colour = Personagem), size = 1, alpha = 0.6) + 
-  # Pontos (Personagens)
-  geom_jitter(aes(colour = Personagem, shape = Cidade), size = 4, alpha = 0.6) + 
-  scale_color_manual(values = rainbow(length(unique(p3$Personagem)))) +  
-  #scale_shape_manual(values = c(0:20)) +  # Usa 21 símbolos diferentes
-  labs(title = "Mapa dos Personagens", 
-       x = "Longitude", 
-       y = "Latitude") +
-  # Rótulos das estruturas (apenas um ponto por Estrutura)
-  #geom_label_repel(data = p3_labels, aes(label = Bairro), size = 4, color = "black", box.padding = 0.5) + 
-  # Rótulos das estruturas (apenas um ponto por detalhe)
-  geom_text_repel(
-  data = p3_labels %>% filter(!is.na(Longitude), !is.na(Latitude), !is.na(Estrutura)),
-  aes(x = Longitude, y = Latitude, label = Estrutura),
-  size = 4, color = "black", box.padding = 0.5,
-  max.overlaps = 25)  + 
-  #stat_ellipse(geom="polygon", aes(fill = Personagem), alpha = 0.2, show.legend = TRUE, level = 0.25) + 
-  theme_minimal() +
-  theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))
-
-
-
-
-```
-
-
 E Personagens
-
 ```
+
 pacman::p_load("ggplot2", "spaa", "recluster", "analogue", "ape", "vegan", "dplyr", "reshape2", "ggrepel")
 
 # Carregar e ajustar os dados
@@ -1064,6 +967,110 @@ ggplot() +
 
 
 #ggsave(width = 20, height = 10, device = "pdf", filename = "2025_3_mst")
+```
+Agora o acumualdo por espécie, vitória
+```
+# Carregar pacotes necessários
+pacman::p_load(dplyr, ggplot2)
+
+# Filtrar os dados
+#p3 <- Data %>% filter(N_categoria == "20", !is.na(Combate))
+p3 <- Data %>% filter(N_categoria == "20", Combate == "Vitória")
+
+# Criar um data frame com a quantidade total de espécies por treinador e oponente
+df_ponteiros <- p3 %>%
+  filter(Personagem %in% Personagem) %>%
+  group_by(Personagem, Oponente, Combate, Classe.op) %>%
+  summarise(Total_Quantidade = sum(Quantidade, na.rm = TRUE)) %>%
+  ungroup()
+
+df_ponteiros <- df_ponteiros %>% filter(!is.na(Combate) & Combate != "")
+
+# Criar gráfico de barras com os eixos invertidos
+ggplot(df_ponteiros, aes(x = Total_Quantidade, y = Oponente, fill = Personagem)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_text(aes(label = Total_Quantidade),  # Adiciona rótulos com os valores
+            position = position_dodge(width = 0.9),  # Garante que os rótulos fiquem alinhados às barras
+            vjust = 0.5,  # Ajusta a posição vertical dos rótulos
+            hjust = -0.2,  # Ajusta a posição horizontal para evitar sobreposição
+            size = 5) +  # Define o tamanho do texto
+  labs(title = "Total de Espécies por Oponente e Treinador",
+       x = "Total de Espécies Acumuladas",
+       y = "Oponente") +
+  theme_minimal() +
+  facet_wrap(~Classe.op, scales = "free") +  # Cada tipo de combate será um painel separado
+  theme(axis.title = element_text(size = 18), 
+        axis.text = element_text(size = 14), 
+        legend.position = "bottom") #+  scale_fill_manual(values = rainbow(length(Personagem)))
+
+
+
+ggsave(filename = "2025_10_Acum_vit.pdf", width = 20, height = 10, device = "pdf")
+```
+
+Excluindo vitória
+```
+# Carregar pacotes necessários
+pacman::p_load(dplyr, ggplot2)
+
+# Filtrar os dados, excluindo "Vitória"
+p3 <- Data %>% filter(N_categoria == "20", Combate != "Vitória")
+
+# Criar um data frame com a quantidade total de espécies por treinador e oponente
+df_ponteiros <- p3 %>%
+  filter(Personagem %in% Personagem) %>%
+  group_by(Personagem, Oponente, Combate) %>%
+  summarise(Total_Quantidade = sum(Quantidade, na.rm = TRUE)) %>%
+  ungroup()
+
+df_ponteiros <- df_ponteiros %>% filter(!is.na(Combate) & Combate != "")
+
+# Criar gráfico de barras com os eixos invertidos
+ggplot(df_ponteiros, aes(x = Total_Quantidade, y = Oponente, fill = Personagem)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_text(aes(label = Total_Quantidade),  # Adiciona rótulos com os valores
+            position = position_dodge(width = 0.9),  # Garante que os rótulos fiquem alinhados às barras
+            vjust = 0.5,  # Ajusta a posição vertical dos rótulos
+            hjust = -0.2,  # Ajusta a posição horizontal para evitar sobreposição
+            size = 5) +  # Define o tamanho do texto
+  labs(title = "Total de Espécies por Oponente e Treinador",
+       x = "Total de Espécies Acumuladas",
+       y = "Oponente") +
+  theme_minimal() +
+  facet_wrap(~Combate, scales = "free") +  # Cada tipo de combate será um painel separado
+  theme(axis.title = element_text(size = 18), 
+        axis.text = element_text(size = 14), 
+        legend.position = "bottom") #+  scale_fill_manual(values = rainbow(length(Personagem)))
+
+
+
+ggsave(filename = "2025_10_Acum_s_vit.pdf", width = 20, height = 10, device = "pdf")
+```
+
+Por dia da semana
+```
+pacman::p_load(dplyr, ggplot2, lubridate, forcats)
+
+
+# Supondo que Data2 seja sua coluna de datas
+p4 <- p4 %>%
+  mutate(Dia_Semana = wday(Data2, label = TRUE, abbr = FALSE, week_start = 1)) %>%
+  mutate(Dia_Semana = fct_relevel(Dia_Semana, 
+                                 "segunda", "terça", "quarta", 
+                                 "quinta", "sexta", "sábado", "domingo"))
+
+# Alternativa: facet por personagem
+ggplot(p4, aes(x = Dia_Semana, fill = Personagem)) +
+  geom_bar() +
+  facet_wrap(~ Personagem) +
+  labs(title = "Distribuição de jogadas por dia da semana",
+       x = "Dia da Semana",
+       y = "Contagem") +
+  scale_fill_manual(values = rainbow(length(unique(p4$Personagem)))) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none")  # Remove legenda redundante
+
 ```
 
 ### Similaridade
