@@ -31,7 +31,6 @@ invisible(lapply(pacotes, require, character.only = TRUE))
 ```
 Adicionar a planilha
 ```
-
 pacman::p_load(googledrive, googlesheets4, readxl, dplyr)
 
 # Autenticar no Google Drive
@@ -176,9 +175,9 @@ p3 <- p3 %>%
          N_categoria == "20")
 
 
-p3 <- p3 %>% filter(Personagem %in% c("Bryn", "Artemisia Asteracea"))
+p3 <- p3 %>% filter(Personagem %in% c("Bryn", "Artemisia Asteracea", "Baltazar Sauvage"))
   
-#p3 <- p3 %>% filter(!Personagem %in% c("Bryn", "Artemisia Asteracea"))
+#p3 <- p3 %>% filter(!Personagem %in% c("Bryn", "Artemisia Asteracea", "Baltazar Sauvage"))
 
 # Reshaping do dataframe
 local <- reshape2::dcast(p3, Patrono + Personagem ~ Esfera, 
@@ -250,9 +249,9 @@ p3 <- p3 %>%
          !is.na(Esfera), 
          N_categoria == "20")
 
-p3 <- p3 %>% filter(Personagem %in% c("Bryn", "Artemisia Asteracea"))
+p3 <- p3 %>% filter(Personagem %in% c("Bryn", "Artemisia Asteracea", "Baltazar Sauvage"))
   
-#p3 <- p3 %>% filter(!Personagem %in% c("Bryn", "Artemisia Asteracea"))
+#p3 <- p3 %>% filter(!Personagem %in% c("Bryn", "Artemisia Asteracea", "Baltazar Sauvage"))
   
 # Reshaping do dataframe
 local <- reshape2::dcast(p3, Esfera + Personagem ~ Patrono, 
@@ -518,6 +517,39 @@ ggsave("2025_10_pizza.png",width = 12, height = 8, dpi = 600)
 
 ```
 
+Por dia da semana
+```
+pacman::p_load(dplyr, ggplot2, lubridate, forcats)
+
+p2 <- Data2
+colnames(p2) <- make.names(colnames(p2), unique = TRUE)
+
+# Filtrando os dados
+p3 <- p2 %>%
+  filter(!is.na(Personagem), 
+         N_categoria == "20") %>%
+  distinct(Evento, Personagem, .keep_all = TRUE)
+
+p4 <- p3 %>%
+  arrange(Data, Data2) %>%
+  mutate(
+    Data = as.Date(Data2),  # Garantir que Data é Date
+    Dia_Semana = wday(Data2, label = TRUE, abbr = TRUE, locale = "pt_BR.UTF-8")  # Criar dia da semana
+  ) %>%
+  filter(!is.na(Data2)) 
+
+# Gráfico
+ggplot(p4, aes(x = Dia_Semana, fill = Presencial)) +
+  geom_bar() +
+  facet_wrap(~ Personagem) +
+  labs(title = "Distribuição de jogadas por dia da semana",
+       x = "Dia da Semana",
+       y = "Contagem") +
+  scale_fill_manual(values = rainbow(length(unique(p4$Personagem)))) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
 
 Verificar habilidades
 ```
@@ -532,6 +564,7 @@ p3 <- p2 %>%
   filter(!is.na(Personagem), 
          N_categoria == "20",
          Categoria == "Combate",
+         Equipado == 1,
          T_Atributo != "Dano")
 
 # Gráfico
@@ -539,7 +572,7 @@ p3 <- p2 %>%
 shapes_personalizados <- c(16, 17, 15, 18, 8, 3, 4, 0, 1, 2, 5, 6, 7, 9, 10)
 
 ggplot(p3, aes(x = N_Hab, y = Bonus, color = Personagem, shape = Classe)) +
-  geom_point(size = 3, alpha = 0.7) +
+  geom_point(size = 4, alpha = 0.7) +
   geom_text_repel(aes(label = D_bonus), size = 2.2, 
                   box.padding = 0.3, max.overlaps = 30) +
   facet_wrap(~ T_bonus, ncol = 1, scales = "free_y") +
@@ -558,28 +591,22 @@ p2 <- subset(planilhatotal, !is.na(Jogador)) #tirar n/a da ano
 p2 <- subset(p2, Grupo == "G5.1") 
 colnames(p2) <- make.names(colnames(p2), unique = TRUE)
 
-
-p3 <- p3 %>%
-  group_by(Personagem) %>%
-  mutate(label_unico = ifelse(duplicated(D_bonus) | duplicated(D_bonus, fromLast = TRUE), 
-                               NA, D_bonus)) %>%
-  ungroup()
-  
 # Filtrar dados
 p3 <- p2 %>%
   filter(!is.na(Personagem), 
          N_categoria == "20",
          Categoria == "Item",
          Equipado == 1,
-         Classe_I != "Item")  
+         Classe_I != "Item")  %>%
+  distinct(Personagem, D_bonus, .keep_all = TRUE)
 
 
 # Gráfico
 # Definir 10 shapes diferentes
 shapes_personalizados <- c(16, 17, 15, 18, 8, 3, 4, 0, 1, 2, 5, 6, 7, 9, 10)
 
-ggplot(p3, aes(x = N_Hab, y = Bonus, color = Personagem, shape = Classe_M, size = Quantidade)) +
-  geom_point(alpha = 0.7) +
+ggplot(p3, aes(x = N_Hab, y = Bonus, color = Personagem, shape = Classe_M)) +
+  geom_point(alpha = 0.6, size = 4) +
   geom_text_repel(aes(label = D_bonus), size = 2.2, box.padding = 0.3, max.overlaps = 30) +
   facet_wrap(~ Classe_I, ncol = 1, scales = "free_y") +
   labs(x = "Nível da Habilidade", y = "Habilidade") +
@@ -603,10 +630,12 @@ p3 <- p2 %>%
          N_categoria == "20",
          Categoria == "Item",
          Equipado == 1,
-         Classe_I == "Item")  
+         Classe_I == "Item") %>%
+  distinct(Personagem, D_bonus, .keep_all = TRUE)
+ 
 
-ggplot(p3, aes(x = N_Hab, y = Bonus, color = Personagem, shape = T_bonus, size = Quantidade)) +
-  geom_point(alpha = 0.7) +
+ggplot(p3, aes(x = N_Hab, y = Bonus, color = Personagem, shape = T_bonus)) +
+  geom_point(alpha = 0.6, size = 4) +
   geom_text_repel(aes(label = D_bonus), size = 2.2, 
                   box.padding = 0.3, max.overlaps = 30) +
   #facet_wrap(~ Classe_I, ncol = 1, scales = "free_y") +
@@ -648,65 +677,7 @@ ggplot(p3, aes(x = Data2, y = acumulado, color = Personagem)) +
 ggsave(width = 20, height = 10, device = "pdf", filename = "2025_10_tratotal")
 
 ```
-Um gráfico de nuvem
 
-```
-# Carregar pacotes
-pacman::p_load(tm, xml2, SnowballC, readr, dplyr, wordcloud, wesanderson, wordcloud2)
-
-# Filtrar dados para remover NAs na coluna Evento
-p2 <- pbase %>% 
-  filter(!is.na(Evento)) %>%
-  #filter(Grupo == "G5") %>%  # Filtra apenas observações onde Grupo é G5
-  distinct(Evento, Personagem, .keep_all = TRUE)
-
-# Preparar o corpus de palavras
-words <- p2 %>% select(Evento) %>% pull() %>% paste(collapse = " ")  # Junta todos os textos
-word.corpus <- Corpus(VectorSource(words)) 
-
-# Transformações no corpus com tratamento de erros
-word.corpus <- word.corpus %>%
-  tm_map(content_transformer(tolower)) %>%
-  tm_map(removePunctuation, preserve_intra_word_dashes = TRUE) %>%
-  tm_map(removeNumbers) %>%
-  tm_map(removeWords, stopwords("portuguese")) %>%  # Remover stopwords em português
-  tm_map(stripWhitespace)
-
-# Criar a matriz de termos e frequências com filtro mínimo
-word.counts <- as.matrix(TermDocumentMatrix(word.corpus, 
-                          control = list(wordLengths = c(3, Inf))))
-word.freq <- sort(rowSums(word.counts), decreasing = TRUE)
-
-# Filtrar palavras muito raras (aparecem menos de 3 vezes)
-word.freq <- word.freq[word.freq >= 3]
-
-# Exibir as 20 palavras mais frequentes
-head(word.freq, 20)
-
-
-
-# OPÇÃO 1: Wordcloud2 interativo (recomendado para muitos termos)
-wordcloud2(data.frame(word = names(word.freq), freq = word.freq),
-           size = 1.2,
-           color = wes_palette("Darjeeling1", n = length(word.freq), type = "continuous"),
-           backgroundColor = "white",
-           shape = 'circle')
-           
-
-# OPÇÃO 2: Wordcloud tradicional com parâmetros otimizados
-#png("wordcloud.png", width = 1200, height = 1200, res = 300)  # Maior resolução
-set.seed(32)
-wordcloud(words = names(word.freq), 
-          freq = word.freq, 
-          scale = c(5, 0.8),
-          min.freq = 3,
-          max.words = 150,
-          random.order = FALSE,
-          colors = wes_palette("Darjeeling1", n = length(word.freq), type = "continuous"),
-          rot.per = 0.35,
-          fixed.asp = TRUE)
-#dev.off()
-```
 Um mapa local
 
 Por personagem
@@ -723,9 +694,8 @@ p3 <- p2 %>%
          !is.na(Personagem),
          !is.na(Bairro),
          !is.na(E_2),
-         N_categoria %in% c("20","23"),
+         #N_categoria %in% c("20","23"),
          N_categoria == "20",
-         #Reino == "Zacharov",
          is.finite(Longitude),
          is.finite(Latitude)) %>%
   arrange(Data2)
@@ -738,11 +708,13 @@ p3_labels <- p3 %>%
   group_by(Bairro) %>%
   slice(1)
 
+shapes_personalizados <- c(16, 17, 15, 18, 8, 3, 4, 0, 1, 2, 5, 6, 7, 9, 10)
+
 # Gráfico por personagem
 ggplot(p3, aes(x = Longitude, y = Latitude, shape = Reino)) + 
   geom_path(aes(colour = Reino, group = Reino), size = 1, alpha = 0.6) + 
   geom_jitter(aes(colour = Reino), size = 4, alpha = 0.6) + 
-  scale_color_manual(values = rainbow(length(unique(p3$Reino)))) + 
+  scale_shape_manual(values = shapes_personalizados) +
   geom_text_repel(data = p3_labels, aes(label = Bairro), 
                 size = 4, color = "black", box.padding = 0.5,
                 max.overlaps = 20) +
@@ -763,21 +735,15 @@ No gŕafico, as linhas representas as comunidades com menor cursto de coenxão e
 pacman::p_load("ggplot2", "spaa", "recluster", "analogue", "ape", "vegan", "dplyr", "reshape2", "ggrepel")
 
 # Carregar e ajustar os dados
-p2 <- Data2
-
-p3 <- p2 %>%
-  filter(!is.na(Estrutura),
-         !is.na(Personagem))
-
+p2 <- planilhatotal
 colnames(p2) <- make.names(colnames(p2), unique = TRUE)
-#p2 <- subset(p2, Jogador != "Raphael S.")
 
 # Filtrar os dados
 p3 <- p2 %>%
-  filter(!is.na(Personagem), N_categoria >= 20 & N_categoria <= 20)
+  filter(!is.na(Personagem), !is.na(Estrutura), N_categoria >= 20 & N_categoria <= 23)
 
 # Criar a matriz local e calcular a distância
-local <- reshape2::dcast(p3, Personagem ~ Bonus, value.var = "N_categoria", fun.aggregate = NULL) %>%
+local <- reshape2::dcast(p3, Personagem ~ Estrutura, value.var = "N_categoria", fun.aggregate = NULL) %>%
   na.omit() %>%
   data.frame(row.names = 1)
 
@@ -808,9 +774,8 @@ ggplot() +
     vjust = -0.5,
     max.overlaps = 25
   ) +
-  labs(title = "Minimum Spanning Tree", x = "Proximidade", y = "Proximidade") +
+  labs(title = "Minimum Spanning Tree", x = "Comunidade", y = "Comunidade") +
   theme_minimal()
-
 
 
 ggsave(width = 20, height = 10, device = "pdf", filename = "2024_10_mst_estrutura")
@@ -818,7 +783,8 @@ ggsave(width = 20, height = 10, device = "pdf", filename = "2024_10_mst_estrutur
 ```
 Um mapa total para cada reino
 ```
-pacman::p_load(ggplot2, dplyr, ggrepel)
+pacman::p_load(ggplot2, dplyr, ggrepel, stringr)
+
 
 p2 <- Data2
 colnames(p2) <- make.names(colnames(p2), unique = TRUE)
@@ -828,7 +794,7 @@ p3 <- p2 %>%
          !is.na(Personagem),
          !is.na(Estrutura), 
          N_categoria == "20",
-         Reino == "Portsmouth", #Deheon / Yuden / Zacahrov
+         str_detect(Reino, "Deheon"), #Deheon / Portsmouth / Zacahrov |Yuden
          !is.na(E_2))
 
 #p3 <- p3 %>% filter(N_categoria %in% c("20"),, between(Latitude, -0.15, 0.15), between(Longitude, -0.15, 0.15))
@@ -919,19 +885,24 @@ ggplot(p3, aes(x = Longitude, y = Latitude, group = Reino)) +
 
 E Personagens
 ```
-
 pacman::p_load("ggplot2", "spaa", "recluster", "analogue", "ape", "vegan", "dplyr", "reshape2", "ggrepel")
 
 # Carregar e ajustar os dados
 p2 <- Data2
+
+p3 <- p2 %>%
+  filter(!is.na(Estrutura),
+         !is.na(Personagem))
+
 colnames(p2) <- make.names(colnames(p2), unique = TRUE)
+#p2 <- subset(p2, Jogador != "Raphael S.")
 
 # Filtrar os dados
 p3 <- p2 %>%
-  filter(!is.na(Personagem), !is.na(Bonus), N_categoria >= 20 & N_categoria <= 23)
+  filter(!is.na(Personagem), N_categoria >= 20 & N_categoria <= 20)
 
 # Criar a matriz local e calcular a distância
-local <- reshape2::dcast(p3, Personagem ~ Bonus, value.var = "N_categoria", fun.aggregate = NULL) %>%
+local <- reshape2::dcast(p3, Personagem ~ Estrutura, value.var = "N_categoria", fun.aggregate = NULL) %>%
   na.omit() %>%
   data.frame(row.names = 1)
 
@@ -962,8 +933,11 @@ ggplot() +
     vjust = -0.5,
     max.overlaps = 25
   ) +
-  labs(title = "Minimum Spanning Tree", x = "Comunidade", y = "Comunidade") +
+  labs(title = "Minimum Spanning Tree", x = "Proximidade", y = "Proximidade") +
   theme_minimal()
+
+
+
 
 
 #ggsave(width = 20, height = 10, device = "pdf", filename = "2025_3_mst")
@@ -1046,33 +1020,65 @@ ggplot(df_ponteiros, aes(x = Total_Quantidade, y = Oponente, fill = Personagem))
 
 ggsave(filename = "2025_10_Acum_s_vit.pdf", width = 20, height = 10, device = "pdf")
 ```
-
-Por dia da semana
-```
-pacman::p_load(dplyr, ggplot2, lubridate, forcats)
-
-
-# Supondo que Data2 seja sua coluna de datas
-p4 <- p4 %>%
-  mutate(Dia_Semana = wday(Data2, label = TRUE, abbr = FALSE, week_start = 1)) %>%
-  mutate(Dia_Semana = fct_relevel(Dia_Semana, 
-                                 "segunda", "terça", "quarta", 
-                                 "quinta", "sexta", "sábado", "domingo"))
-
-# Alternativa: facet por personagem
-ggplot(p4, aes(x = Dia_Semana, fill = Personagem)) +
-  geom_bar() +
-  facet_wrap(~ Personagem) +
-  labs(title = "Distribuição de jogadas por dia da semana",
-       x = "Dia da Semana",
-       y = "Contagem") +
-  scale_fill_manual(values = rainbow(length(unique(p4$Personagem)))) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        legend.position = "none")  # Remove legenda redundante
+Um gráfico de nuvem
 
 ```
+# Carregar pacotes
+pacman::p_load(tm, xml2, SnowballC, readr, dplyr, wordcloud, wesanderson, wordcloud2)
 
+# Filtrar dados para remover NAs na coluna Evento
+p2 <- pbase %>% 
+  filter(!is.na(Evento)) %>%
+  #filter(Grupo == "G5") %>%  # Filtra apenas observações onde Grupo é G5
+  distinct(Evento, Personagem, .keep_all = TRUE)
+
+# Preparar o corpus de palavras
+words <- p2 %>% select(Evento) %>% pull() %>% paste(collapse = " ")  # Junta todos os textos
+word.corpus <- Corpus(VectorSource(words)) 
+
+# Transformações no corpus com tratamento de erros
+word.corpus <- word.corpus %>%
+  tm_map(content_transformer(tolower)) %>%
+  tm_map(removePunctuation, preserve_intra_word_dashes = TRUE) %>%
+  tm_map(removeNumbers) %>%
+  tm_map(removeWords, stopwords("portuguese")) %>%  # Remover stopwords em português
+  tm_map(stripWhitespace)
+
+# Criar a matriz de termos e frequências com filtro mínimo
+word.counts <- as.matrix(TermDocumentMatrix(word.corpus, 
+                          control = list(wordLengths = c(3, Inf))))
+word.freq <- sort(rowSums(word.counts), decreasing = TRUE)
+
+# Filtrar palavras muito raras (aparecem menos de 3 vezes)
+word.freq <- word.freq[word.freq >= 3]
+
+# Exibir as 20 palavras mais frequentes
+head(word.freq, 20)
+
+
+
+# OPÇÃO 1: Wordcloud2 interativo (recomendado para muitos termos)
+wordcloud2(data.frame(word = names(word.freq), freq = word.freq),
+           size = 1.2,
+           color = wes_palette("Darjeeling1", n = length(word.freq), type = "continuous"),
+           backgroundColor = "white",
+           shape = 'circle')
+           
+
+# OPÇÃO 2: Wordcloud tradicional com parâmetros otimizados
+#png("wordcloud.png", width = 1200, height = 1200, res = 300)  # Maior resolução
+set.seed(32)
+wordcloud(words = names(word.freq), 
+          freq = word.freq, 
+          scale = c(5, 0.8),
+          min.freq = 3,
+          max.words = 150,
+          random.order = FALSE,
+          colors = wes_palette("Darjeeling1", n = length(word.freq), type = "continuous"),
+          rot.per = 0.35,
+          fixed.asp = TRUE)
+#dev.off()
+```
 ### Similaridade
 Agora um jacard
 ```
@@ -1086,14 +1092,14 @@ p2 <- p2[, !(names(p2) == "" | is.na(names(p2)))]
 p3 <- p2 %>%
   filter(
     !is.na(Personagem),
-    !is.na(Patrono),
+    !is.na(Bonus),
     N_categoria >= 20 & N_categoria <= 24)
 
 # Remover duplicatas
 p3 <- p3[!duplicated(p3), ]
 
 # Criar a tabela pivotante
-local <- dcast(p3, Personagem ~ Patrono, value.var = "Atributos", fun.aggregate = NULL, fill = 0)
+local <- dcast(p3, Personagem ~ Bonus, value.var = "Atributos", fun.aggregate = NULL, fill = 0)
 
 # Definir Personagem como nome das linhas e remover a coluna
 local <- data.frame(local, row.names = 1)
@@ -1113,6 +1119,9 @@ hc <- hclust(d)
 
 # Plotar o dendrograma com rótulos
 plot(hc, labels = rownames(local), main = "Dendrograma de Personagens", xlab = "", sub = "")
+
+```
+
 
 ```
 pacman::p_load(ggfortify, cluster, reshape2, dplyr)
