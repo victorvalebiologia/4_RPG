@@ -175,9 +175,11 @@ p3 <- p3 %>%
          N_categoria == "20")
 
 
-p3 <- p3 %>% filter(Personagem %in% c("Bryn", "Artemisia Asteracea", "Baltazar Sauvage"))
+p3 <- p3 %>% filter(Personagem %in% c("Artemisia Asteracea", "Baltazar Sauvage"))
+p3 <- p3 %>% filter(Personagem %in% c("Kalizé", "Darius Ravnus"))
+p3 <- p3 %>% filter(Personagem %in% c("Acheron Yudennach", "Salém Aleator"))
   
-#p3 <- p3 %>% filter(!Personagem %in% c("Bryn", "Artemisia Asteracea", "Baltazar Sauvage"))
+#p3 <- p3 %>% filter(!Personagem %in% c("Artemisia Asteracea", "Baltazar Sauvage"))
 
 # Reshaping do dataframe
 local <- reshape2::dcast(p3, Patrono + Personagem ~ Esfera, 
@@ -249,9 +251,11 @@ p3 <- p3 %>%
          !is.na(Esfera), 
          N_categoria == "20")
 
-p3 <- p3 %>% filter(Personagem %in% c("Bryn", "Artemisia Asteracea", "Baltazar Sauvage"))
+p3 <- p3 %>% filter(Personagem %in% c("Artemisia Asteracea", "Baltazar Sauvage"))
+p3 <- p3 %>% filter(Personagem %in% c("Kalizé", "Darius Ravnus"))
+p3 <- p3 %>% filter(Personagem %in% c("Acheron Yudennach", "Salém Aleator"))
   
-#p3 <- p3 %>% filter(!Personagem %in% c("Bryn", "Artemisia Asteracea", "Baltazar Sauvage"))
+#p3 <- p3 %>% filter(!Personagem %in% c("Artemisia Asteracea", "Baltazar Sauvage"))
   
 # Reshaping do dataframe
 local <- reshape2::dcast(p3, Esfera + Personagem ~ Patrono, 
@@ -312,6 +316,9 @@ Contelação de personagens
 ```
 pacman::p_load(patchwork)
 
+p2 <- Data2
+#p2 <- planilhatotal
+colnames(p2) <- make.names(colnames(p2), unique = TRUE)
 
 p3 <- tidyr::separate_rows(p2, Esfera, sep = "/")
 p3 <- tidyr::separate_rows(p3, Patrono, sep = "/")
@@ -373,6 +380,164 @@ if(!is.null(q1) && !is.null(q2)) {
 }
 
 ```
+O contrário
+
+```
+
+# Versão mais direta - sem função
+p2 <- Data2
+colnames(p2) <- make.names(colnames(p2), unique = TRUE)
+
+p3 <- tidyr::separate_rows(p2, Esfera, sep = "/")
+p3 <- tidyr::separate_rows(p3, Patrono, sep = "/")
+
+p3 <- p3 %>%
+  filter(!is.na(Personagem), 
+         !is.na(Patrono), 
+         !is.na(Esfera), 
+         N_categoria == "20")
+
+# PCA para Patrono (agora Patrono é o sujeito, Personagem é variável)
+local_patrono <- reshape2::dcast(p3, Patrono ~ Personagem, 
+                                 value.var = "N_categoria", 
+                                 fun.aggregate = sum,
+                                 na.rm = TRUE)
+local_patrono <- local_patrono[complete.cases(local_patrono), ]
+local_numeric_patrono <- local_patrono %>% select(where(is.numeric))
+pca_res_patrono <- prcomp(local_numeric_patrono, scale. = TRUE)
+
+pca_scores_patrono <- as.data.frame(pca_res_patrono$x)
+pca_scores_patrono$Patrono <- local_patrono$Patrono
+
+q1 <- ggplot(pca_scores_patrono, aes(x = PC1, y = PC2)) +
+  geom_point(aes(color = Patrono), size = 2.5) +
+  geom_text(aes(label = Patrono), size = 2.8, check_overlap = TRUE, vjust = -0.8) +
+  geom_segment(data = as.data.frame(pca_res_patrono$rotation * 2.8),
+               aes(x = 0, y = 0, xend = PC1, yend = PC2),
+               arrow = arrow(length = unit(0.08, "cm"))) +
+  geom_text(data = as.data.frame(pca_res_patrono$rotation * 3),
+            aes(x = PC1, y = PC2, label = rownames(pca_res_patrono$rotation)),
+            size = 2.5) +
+  theme_bw(base_size = 9) +
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "none") +
+  labs(title = "Patronos × Personagens", x = "PC1", y = "PC2")
+
+# PCA para Esfera
+local_esfera <- reshape2::dcast(p3, Esfera ~ Personagem, 
+                                value.var = "N_categoria", 
+                                fun.aggregate = sum,
+                                na.rm = TRUE)
+local_esfera <- local_esfera[complete.cases(local_esfera), ]
+local_numeric_esfera <- local_esfera %>% select(where(is.numeric))
+pca_res_esfera <- prcomp(local_numeric_esfera, scale. = TRUE)
+
+pca_scores_esfera <- as.data.frame(pca_res_esfera$x)
+pca_scores_esfera$Esfera <- local_esfera$Esfera
+
+q2 <- ggplot(pca_scores_esfera, aes(x = PC1, y = PC2)) +
+  geom_point(aes(color = Esfera), size = 2.5) +
+  geom_text(aes(label = Esfera), size = 2.8, check_overlap = TRUE, vjust = -0.8) +
+  geom_segment(data = as.data.frame(pca_res_esfera$rotation * 2.8),
+               aes(x = 0, y = 0, xend = PC1, yend = PC2),
+               arrow = arrow(length = unit(0.08, "cm"))) +
+  geom_text(data = as.data.frame(pca_res_esfera$rotation * 3),
+            aes(x = PC1, y = PC2, label = rownames(pca_res_esfera$rotation)),
+            size = 2.5) +
+  theme_bw(base_size = 9) +
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "none") +
+  labs(title = "Esferas × Personagens", x = "PC1", y = "PC2")
+
+# Combinar
+q1 + q2
+
+```
+Tendência
+``` 
+Tendências
+# Carregar pacotes
+library(dplyr)
+library(tidyr)
+
+p2 <- Data2
+
+# Separar os patronos
+p3 <- p2 %>%
+  tidyr::separate_rows(Patrono, sep = "/")
+
+# Adicionar Tendência e Lealdade usando case_when
+p3 <- p3 %>%
+  mutate(
+    Tendência = case_when(
+      # +1
+      Patrono %in% c("Azgher", "Gloriénn", "Khalmyr", "Lenna", "Lin-Wu", "Marah", "Valkaria", "Tyathis", "Tauron") ~ 1,
+      # 0
+      Patrono %in% c("Alihanna", "Grande Oceano", "Nimb", "Tanna-Toh", "Wynna") ~ 0,
+      # -1
+      Patrono %in% c("Hyninn", "Kenn", "Ragnar", "Megalock", "Sszzass", "Tenebra", "Aharadak", "Kallyadranock") ~ -1,
+      TRUE ~ NA_real_
+    ),
+    Lealdade = case_when(
+      # +1
+      Patrono %in% c("Azgher", "Gloriénn", "Khalmyr", "Lenna", "Lin-Wu", "Marah", "Tyathis", "Tauron") ~ 1,
+      # 0
+      Patrono %in% c("Tanna-Toh", "Kallyadranock", "Valkaria", "Alihanna", "Grande Oceano", "Wynna") ~ 0,
+      # -1
+      Patrono %in% c("Hyninn", "Kenn", "Megalock", "Ragnar", "Sszzass", "Tenebra", "Aharadak", "Nimb") ~ -1,
+      TRUE ~ NA_real_
+    )
+  )
+
+# Ver quantos patronos de cada tipo
+p3 %>%
+  group_by(Patrono, Tendência, Lealdade) %>%
+  summarise(Contagem = n(), .groups = 'drop') %>%
+  arrange(Tendência, Lealdade)
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Preparar os dados (assumindo que p3 já foi criado)
+# Calcular a média de Tendência e Lealdade por personagem
+dados_grafico <- p3 %>%
+  group_by(Personagem) %>%
+  summarise(
+    Tendência_media = mean(Tendência, na.rm = TRUE),
+    Lealdade_media = mean(Lealdade, na.rm = TRUE),
+    Contagem = n(),  # Número de registros por personagem
+    .groups = 'drop'
+  ) %>%
+  filter(!is.na(Tendência_media), !is.na(Lealdade_media))
+
+ggplot(dados_grafico, aes(x = Tendência_media, y = Lealdade_media)) +
+  geom_point(aes(size = Contagem, color = Personagem), 
+              width = 0.05, height = 0.05, alpha = 0.7) +
+  geom_text_repel(aes(label = Personagem), size = 3, max.overlaps = 20) +
+  geom_hline(yintercept = 0, linetype = "dashed", alpha = 0.5) +
+  geom_vline(xintercept = 0, linetype = "dashed", alpha = 0.5) +
+  scale_x_continuous(limits = c(-1.5, 1.5), breaks = c(-1, 0, 1),
+                     labels = c("Caótico", "Neutro", "Leal")) +
+  scale_y_continuous(limits = c(-1.5, 1.5), breaks = c(-1, 0, 1),
+                     labels = c("Mal", "Neutro", "Bom")) +
+  labs(
+    title = "Personagens: Tendência vs Lealdade",
+    subtitle = "Baseado nos Patronos",
+    x = "Tendência (- Caótico | Leal +)",
+    y = "Lealdade (- Mal | Bom +)",
+    size = "Registros",
+    color = "Personagem"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+    plot.subtitle = element_text(hjust = 0.5, size = 10, color = "gray40"),
+    axis.title = element_text(face = "bold"),
+    legend.position = "right",
+    panel.grid.major = element_line(color = "gray90", linewidth = 0.4),
+    panel.grid.minor = element_blank()
+  )
+``` 
+
 ### Análises eploratórias
 
 ## Rota
@@ -434,6 +599,28 @@ p3 <- p2 %>%
          N_categoria == "20") %>%
   distinct(Evento, .keep_all = TRUE)
 
+ggplot(p3, aes(x = Data2, fill = Personagem)) +
+  geom_area(stat = "bin", bins = 30, alpha = 0.7, position = "stack") +
+  scale_fill_manual(values = rainbow(length(unique(p3$Personagem)))) +
+  scale_x_date(date_labels = "%b/%Y", date_breaks = "1 month") +
+  labs(x = "Tempo", y = "Número de Eventos") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+        
+ggsave("2025_10_overlap2.png",width = 12, height = 8, dpi = 600)
+```
+Destaque gráfico lateral 2
+```
+
+p2 <- Data2
+colnames(p2) <- make.names(colnames(p2), unique = TRUE)
+
+# Filtrando os dados
+p3 <- p2 %>%
+  filter(!is.na(Personagem), 
+         N_categoria == "20") %>%
+  distinct(Evento, .keep_all = TRUE)
+
 ggplot(p3, aes(x = Data2, y = T_Atributo, colour = Personagem)) +
   #geom_boxplot() +
   #geom_smooth(aes(color = Personagem), se = TRUE, method = "loess") +
@@ -448,9 +635,7 @@ ggplot(p3, aes(x = Data2, y = T_Atributo, colour = Personagem)) +
   theme(ggside.panel.scale.x = 0.2,
     ggside.panel.scale.y = 0.2,
     legend.position = "bottom",  # Posiciona a legenda à direita para melhor clareza
-    axis.text.x = element_text(angle = 45, hjust = 1))  # Rotaciona os rótulos do eixo X para melhor leitura
-  
-ggsave("2025_10_overlap2.png",width = 12, height = 8, dpi = 600)
+    axis.text.x = element_text(angle = 45, hjust = 1))
 
 ```
 Ano do jogo
@@ -465,7 +650,7 @@ p3 <- p2 %>%
   filter(!is.na(Personagem), 
          N_categoria == "20",
          Ano_A >= 1330) %>%
-  distinct(Evento, .keep_all = TRUE) %>%
+  distinct(Evento, Personagem, .keep_all = TRUE) %>%
   mutate(Data = as.Date(Data)) %>%
   filter(!is.na(Data))
 
@@ -634,7 +819,7 @@ p3 <- p2 %>%
   distinct(Personagem, D_bonus, .keep_all = TRUE)
  
 
-ggplot(p3, aes(x = N_Hab, y = Bonus, color = Personagem, shape = T_bonus)) +
+ggplot(p3, aes(x = Valor, y = Bonus, color = Personagem, shape = T_bonus)) +
   geom_point(alpha = 0.6, size = 4) +
   geom_text_repel(aes(label = D_bonus), size = 2.2, 
                   box.padding = 0.3, max.overlaps = 30) +
@@ -713,7 +898,7 @@ shapes_personalizados <- c(16, 17, 15, 18, 8, 3, 4, 0, 1, 2, 5, 6, 7, 9, 10)
 # Gráfico por personagem
 ggplot(p3, aes(x = Longitude, y = Latitude, shape = Reino)) + 
   geom_path(aes(colour = Reino, group = Reino), size = 1, alpha = 0.6) + 
-  geom_jitter(aes(colour = Reino), size = 4, alpha = 0.6) + 
+  geom_point(aes(colour = Reino), size = 4, alpha = 0.6) + 
   scale_shape_manual(values = shapes_personalizados) +
   geom_text_repel(data = p3_labels, aes(label = Bairro), 
                 size = 4, color = "black", box.padding = 0.5,
@@ -735,7 +920,8 @@ No gŕafico, as linhas representas as comunidades com menor cursto de coenxão e
 pacman::p_load("ggplot2", "spaa", "recluster", "analogue", "ape", "vegan", "dplyr", "reshape2", "ggrepel")
 
 # Carregar e ajustar os dados
-p2 <- planilhatotal
+#p2 <- planilhatotal
+p2 <- Data2
 colnames(p2) <- make.names(colnames(p2), unique = TRUE)
 
 # Filtrar os dados
@@ -785,8 +971,9 @@ Um mapa total para cada reino
 ```
 pacman::p_load(ggplot2, dplyr, ggrepel, stringr)
 
+p2 <- planilhatotal
 
-p2 <- Data2
+#p2 <- Data2
 colnames(p2) <- make.names(colnames(p2), unique = TRUE)
 
 p3 <- p2 %>%
@@ -794,10 +981,11 @@ p3 <- p2 %>%
          !is.na(Personagem),
          !is.na(Estrutura), 
          N_categoria == "20",
-         str_detect(Reino, "Deheon"), #Deheon / Portsmouth / Zacahrov |Yuden
+         #str_detect(Reino, "Deheon"), #Deheon / Portsmouth / Zacahrov |Yuden
+         str_detect(Cidade, "Valkária"), #
          !is.na(E_2))
 
-#p3 <- p3 %>% filter(N_categoria %in% c("20"),, between(Latitude, -0.15, 0.15), between(Longitude, -0.15, 0.15))
+p3 <- p3 %>% filter(N_categoria %in% c("20"),, between(Latitude, -0.15, 0.15), between(Longitude, -0.15, 0.15))
 
 
 p3 <- p3 %>% filter(is.finite(Longitude) & is.finite(Latitude))
@@ -817,14 +1005,14 @@ p3_labels2 <- p3 %>%
 p3 <- p3 %>% filter(is.finite(Longitude) & is.finite(Latitude))
 
 # Ordenando os dados pela coluna Data2
-p3 <- p3 %>% arrange(Data2)
+#p3 <- p3 %>% arrange(Data2)
 
 # Criando o gráfico
 ggplot(p3, aes(x = Longitude, y = Latitude, group = Personagem)) + 
   # Linha conectando os pontos
   geom_path(aes(colour = Personagem), size = 1, alpha = 0.6) + 
   # Pontos (Personagens)
-  geom_jitter(aes(colour = Personagem, shape = Vila), size = 4, alpha = 0.6) + 
+  geom_jitter(aes(colour = Personagem, shape = Bairro), size = 4, alpha = 0.6) + 
   scale_color_manual(values = rainbow(length(unique(p3$Personagem)))) +  
   scale_shape_manual(values = c(0:20)) +  # Usa 21 símbolos diferentes
   labs(title = "Mapa dos Personagens", 
@@ -879,6 +1067,8 @@ ggplot(p3, aes(x = Longitude, y = Latitude, group = Reino)) +
   theme(axis.title = element_text(size = 18), axis.text = element_text(size = 14))
 
 ```
+
+
 #######################################
 
 
@@ -1031,6 +1221,9 @@ p2 <- pbase %>%
   filter(!is.na(Evento)) %>%
   #filter(Grupo == "G5") %>%  # Filtra apenas observações onde Grupo é G5
   distinct(Evento, Personagem, .keep_all = TRUE)
+
+
+p2 <- p2 %>% filter(Personagem == "Artemisia Asteracea")
 
 # Preparar o corpus de palavras
 words <- p2 %>% select(Evento) %>% pull() %>% paste(collapse = " ")  # Junta todos os textos
